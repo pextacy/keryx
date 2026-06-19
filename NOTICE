@@ -1,0 +1,37 @@
+Keryx
+Copyright (c) 2026 Keryx contributors
+
+This product is licensed under the MIT License (see LICENSE). It assembles and
+customizes the following third-party open-source projects. Each retains its own
+license; we keep upstream LICENSE files on vendoring and attribute here, per the
+AGENTS.md ground rules.
+
+--------------------------------------------------------------------------------
+1. circlefin/arc-nanopayments
+   License: Apache License 2.0
+   Source:  https://github.com/circlefin/arc-nanopayments
+   Used as: the payments-rail base — x402-protected seller endpoints, the
+            paying-agent x402 client, and Gateway batching. Our delta customizes
+            the seller endpoint into rail/cite/ (the citation toll).
+   Note:    Apache-2.0 requires preserving this attribution and stating changes.
+            Verified at vendoring (2026-06-19): the upstream is a TypeScript /
+            Next.js app using @langchain/core (LangChain.js) + viem, NOT Python.
+            See docs/phases.md and DECISIONS for the stack implication.
+
+2. the-canteen-dev/circle-agent
+   License: ISC (declared in package.json; no standalone LICENSE file upstream)
+   Source:  https://github.com/the-canteen-dev/circle-agent
+   Used as: reference/explainer for the full stack — we lift wiring patterns,
+            not product code.
+
+--------------------------------------------------------------------------------
+Additional upstreams pulled at later phases (attribution added on vendoring):
+   - DIYgod/RSSHub                  (MIT)          — source ingest
+   - LangChain                      (MIT)          — agent framework
+   - pgvector                       (PostgreSQL)   — grounding similarity
+   - viem                           (MIT)          — chain reads
+   - the-canteen-dev/ARC-cli        (verify)       — dev tooling (used, not forked)
+   - the-canteen-dev/context-arc    (verify)       — Arc/Circle agent context
+
+Verify each LICENSE the moment it is cloned — it is a 5-second check that ships in
+the submitted repo (docs.md).

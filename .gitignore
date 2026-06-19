@@ -1,0 +1,34 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Node / Next.js
+node_modules/
+web/.next/
+web/out/
+web/.vercel/
+*.tsbuildinfo
+
+# Vendored upstreams: cloned locally for reference/forking, not committed wholesale.
+# We keep their LICENSE attributions in NOTICE; the customized code lands in
+# rail/ and agent/ as our delta. Remove this line if we decide to vendor in-tree.
+/vendor/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
