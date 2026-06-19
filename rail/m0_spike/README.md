@@ -25,8 +25,13 @@ npm install
 # 1. Generate fresh AUTHOR (payee) + BUYER (funder) wallets -> writes .env
 npm run generate-wallets
 
-# 2. Fund the BUYER address with Arc testnet USDC (the only manual step):
-#    https://faucet.circle.com/   (select Arc Testnet)
+# 2. Fund the BUYER address with Arc testnet USDC (the only manual step).
+#    Option A — web faucet:  https://faucet.circle.com/  (select Arc Testnet)
+#    Option B — Circle CLI (needs an interactive email-OTP login):
+#        npx @circle-fin/cli wallet login
+#        npx @circle-fin/cli wallet fund --address <BUYER_ADDRESS> --chain ARC-TESTNET --token usdc
+#    Confirm balance:
+#        npx @circle-fin/cli wallet balance --address <BUYER_ADDRESS> --chain ARC-TESTNET
 
 # 3. Terminal A — start the citation-toll seller (payTo = author):
 npm run seller
