@@ -51,6 +51,18 @@ class Settings(BaseSettings):
     anthropic_api_key: str = Field(default="")
     judge_model: str = Field(default="claude-opus-4-8")
 
+    # --- Grounding score weighting (similarity vs judge) ---
+    similarity_weight: float = Field(default=0.4, ge=0.0, le=1.0)
+    judge_weight: float = Field(default=0.6, ge=0.0, le=1.0)
+    scale_amount_by_g: bool = Field(
+        default=True, description="If true, amount scales with g within the toll band"
+    )
+
+    # --- Agent identity (attestation signing) ---
+    agent_private_key: str = Field(
+        default="", description="0x hex secp256k1 key the agent signs attestations with"
+    )
+
     @field_validator("citation_toll_max")
     @classmethod
     def _toll_range_ordered(cls, v: Decimal, info: ValidationInfo) -> Decimal:

@@ -1,6 +1,26 @@
 """agent/grounding/ — the moat (ORIGINAL WORK).
 
-Similarity (pgvector cosine over answer spans x source passages) + LLM-judge
-(supported|partial|unsupported per claim) -> grounding score g in [0,1]; gate at
-T; weighted per-citation amount. Implemented in Phase 2 (M1). Placeholder in Phase 0.
+Similarity (cosine over answer x source) + LLM-judge (supported|partial|unsupported)
+-> grounding score g in [0,1]; gate at T; weighted per-citation amount. Pluggable
+embedder/judge so the offline v1 (CI-safe) and the production pgvector + LLM judge
+share one interface.
 """
+
+from __future__ import annotations
+
+from agent.grounding.embeddings import BagOfWordsEmbedder, Embedder, cosine, similarity
+from agent.grounding.judge import HeuristicJudge, Judge, JudgeResult, Verdict
+from agent.grounding.scorer import GroundingResult, GroundingScorer
+
+__all__ = [
+    "BagOfWordsEmbedder",
+    "Embedder",
+    "GroundingResult",
+    "GroundingScorer",
+    "HeuristicJudge",
+    "Judge",
+    "JudgeResult",
+    "Verdict",
+    "cosine",
+    "similarity",
+]
