@@ -1,0 +1,116 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { ARC_EXPLORER_TX } from "@/lib/types";
+
+interface Metrics {
+  total_settled_usdc: string;
+  citations_settled: number;
+  distinct_author_wallets: number;
+  distinct_sessions: number;
+  team: { citations: number; settled_usdc: string };
+  external: { citations: number; settled_usdc: string };
+  external_share_pct: number;
+}
+interface Row {
+  source_url: string;
+  author_wallet: string | null;
+  g: number;
+  amount: string;
+  tx_hash: string;
+  external: boolean;
+  ts: number;
+}
+
+export default function LedgerPage() {
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch("/api/ledger", { cache: "no-store" });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.message ?? "failed");
+        setMetrics(data.metrics);
+        setRows(data.recent ?? []);
+      } catch (err) {
+        setError((err as Error).message);
+      }
+    };
+    load();
+    const id = setInterval(load, 4000); // live-ish refresh
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <main className="mx-auto max-w-4xl p-8">
+      <h1 className="text-2xl font-semibold">Settlement ledger</h1>
+      <p className="mt-1 text-sm text-gray-500">
+        Mirrors on-chain settlement — chain is canonical. Team vs external volume labeled.
+      </p>
+      {error && <p className="mt-4 rounded bg-red-50 p-3 text-red-700">{error}</p>}
+
+      {metrics && (
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Total settled" value={`${metrics.total_settled_usdc} USDC`} />
+          <Stat label="Citations" value={metrics.citations_settled} />
+          <Stat label="Author wallets" value={metrics.distinct_author_wallets} />
+          <Stat label="External share" value={`${metrics.external_share_pct}%`} />
+        </div>
+      )}
+
+      <table className="mt-8 w-full text-left text-sm">
+        <thead className="text-gray-500">
+          <tr>
+            <th className="py-2">Source</th>
+            <th>g</th>
+            <th>Amount</th>
+            <th>Who</th>
+            <th>Tx</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.tx_hash + r.source_url} className="border-t border-gray-100">
+              <td className="py-2">{r.source_url}</td>
+              <td className="font-mono">{r.g.toFixed(2)}</td>
+              <td className="font-mono text-green-700">{r.amount}</td>
+              <td>
+                <span className={r.external ? "text-purple-600" : "text-gray-400"}>
+                  {r.external ? "external" : "team"}
+                </span>
+              </td>
+              <td>
+                <a
+                  href={ARC_EXPLORER_TX + r.tx_hash}
+                  target="_blank"
+                  className="text-blue-600 underline"
+                >
+                  {r.tx_hash.slice(0, 10)}…
+                </a>
+              </td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={5} className="py-6 text-center text-gray-400">
+                No settlements yet — ask a question on the home page.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </main>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded border border-gray-200 p-3">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
+    </div>
+  );
+}

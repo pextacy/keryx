@@ -18,6 +18,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from agent.attestation import AttestationSigner, verify_attestation
+from agent.ledger import Ledger
 from agent.pipeline import AskPipeline, Session
 from registry.fixtures import seeded_registry
 from shared.config import settings
@@ -35,12 +36,14 @@ registry = seeded_registry()
 _agent_key = settings.agent_private_key or Account.create().key.hex()
 signer = AttestationSigner(_agent_key)
 pipeline = AskPipeline(store=registry, rail=rail, signer=signer)
+ledger = Ledger()
 
 
 class AskRequest(BaseModel):
     query: str = Field(min_length=1)
     budget: Decimal | None = Field(default=None, description="USDC budget for this query")
     per_source_cap: Decimal | None = None
+    external: bool = Field(default=False, description="True if from a non-team agent")
 
 
 @app.get("/healthz")
@@ -67,6 +70,14 @@ def ask(req: AskRequest) -> dict[str, Any]:
         per_source_cap=req.per_source_cap,
     )
     result = pipeline.ask(req.query, session)
+    author_wallets = {s.url: s.author_wallet for s in registry.all()}
+    ledger.record(
+        query_hash=result.attestation.query_hash,
+        agent_wallet=session.agent_wallet,
+        citations=list(result.citations),
+        author_wallets=author_wallets,
+        external=req.external,
+    )
     return {
         "answer": result.answer,
         "total_settled": str(result.total_settled),
@@ -93,3 +104,15 @@ def ask(req: AskRequest) -> dict[str, Any]:
             "verified": verify_attestation(result.attestation),
         },
     }
+
+
+@app.get("/metrics")
+def metrics() -> dict[str, Any]:
+    """Traction metrics — the numbers we lead with (prd.md §8)."""
+    return ledger.metrics()
+
+
+@app.get("/ledger")
+def get_ledger(limit: int = 50) -> dict[str, Any]:
+    """Settlement ledger for the dashboard. Mirrors chain; chain stays canonical."""
+    return {"metrics": ledger.metrics(), "recent": ledger.recent(limit)}
