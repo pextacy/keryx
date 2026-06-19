@@ -27,14 +27,14 @@ if (!AUTHOR_ADDRESS) {
 
 const facilitator = new BatchFacilitatorClient();
 
-function buildRequirements(price: string) {
+function buildRequirements(payTo: string, price: string) {
   const amount = Math.round(parseFloat(price) * 1_000_000); // USDC 6 decimals
   return {
     scheme: "exact" as const,
     network: ARC_TESTNET_NETWORK,
     asset: ARC_TESTNET_USDC,
     amount: amount.toString(),
-    payTo: AUTHOR_ADDRESS!,
+    payTo,
     maxTimeoutSeconds: 345600,
     extra: {
       name: "GatewayWalletBatched",
@@ -44,7 +44,6 @@ function buildRequirements(price: string) {
   };
 }
 
-const requirements = buildRequirements(TOLL);
 const endpoint = "/cite";
 
 const server = createServer(async (req, res) => {
@@ -52,6 +51,14 @@ const server = createServer(async (req, res) => {
     res.writeHead(404).end(JSON.stringify({ error: "not found" }));
     return;
   }
+
+  // Per-request payee + toll: the citation pays the *cited author*, which varies per
+  // source. Defaults to env (the M0 single-payment case). The verify and settle calls
+  // below must use this same requirements object.
+  const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+  const payTo = (url.searchParams.get("payTo") as `0x${string}` | null) ?? AUTHOR_ADDRESS!;
+  const price = url.searchParams.get("amount") ?? TOLL;
+  const requirements = buildRequirements(payTo, price);
 
   const paymentSignature = req.headers["payment-signature"] as string | undefined;
 
@@ -61,7 +68,7 @@ const server = createServer(async (req, res) => {
       x402Version: 2,
       resource: {
         url: endpoint,
-        description: `Citation toll (${TOLL} USDC)`,
+        description: `Citation toll (${price} USDC)`,
         mimeType: "application/json",
       },
       accepts: [requirements],
@@ -99,7 +106,7 @@ const server = createServer(async (req, res) => {
 
     const payer = settle.payer ?? verify.payer ?? "unknown";
     console.log(
-      `[seller] SETTLED ${TOLL} USDC from ${payer} -> author ${AUTHOR_ADDRESS}`,
+      `[seller] SETTLED ${price} USDC from ${payer} -> author ${payTo}`,
     );
     console.log(`[seller] tx: ${settle.transaction}`);
     console.log(`[seller] explorer: https://explorer.testnet.arc.network/tx/${settle.transaction}`);

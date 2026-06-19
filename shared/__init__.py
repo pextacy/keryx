@@ -7,7 +7,7 @@ are coordinated across both instances, never unilateral. See docs/phases.md Phas
 from __future__ import annotations
 
 from shared.config import Settings, settings
-from shared.rail import MockRail, Rail
+from shared.rail import HttpRail, MockRail, Rail
 from shared.types import (
     Attestation,
     CitationIntent,
@@ -20,6 +20,7 @@ __all__ = [
     "Attestation",
     "CitationIntent",
     "CitationRecord",
+    "HttpRail",
     "MockRail",
     "Rail",
     "Receipt",

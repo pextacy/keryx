@@ -3,7 +3,21 @@
 Running log of choices and unresolved questions surfaced during the build. Phase 0
 entries first.
 
-## OPEN — Rail language: Python/FastAPI (planned) vs TypeScript (actual upstream)
+## RESOLVED (2026-06-19) — Rail in TypeScript, agent in Python, bridged over the frozen contract → Option (A)
+
+**Decision:** The x402 + Gateway batching SDK (`@circle-fin/x402-batching`, both the
+`BatchFacilitatorClient` server and the `GatewayClient` payer) is **TypeScript-only** —
+there is no Python equivalent. Per "assemble, don't author," the rail stays TS:
+- `rail/m0_spike/seller.ts` → the `/cite` seller (verify → settle).
+- `rail/payer/` → a tiny TS service wrapping `GatewayClient.pay()` per `CitationIntent`.
+- The Python agent settles via `shared.rail.HttpRail`, which POSTs intents to the payer
+  and gets back `Receipt`s — the same frozen `settle(intents) -> list[Receipt]` contract,
+  so the agent code is identical whether it talks to `MockRail` or the real rail.
+
+The moat (grounding + attestation) stays Python. This is provisional engineering driven
+by the SDK constraint; the user/CC-A owner can override. Original OPEN analysis kept below.
+
+### OPEN (superseded) — Rail language: Python/FastAPI (planned) vs TypeScript (actual upstream)
 
 **Discovered (2026-06-19, Phase 0 vendoring):** `circlefin/arc-nanopayments` — the
 repo `plan.md`/`docs.md` tell us to fork and "stay on" — is a **TypeScript / Next.js**

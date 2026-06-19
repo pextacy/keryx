@@ -7,6 +7,7 @@
   "scripts": {
     "generate-wallets": "node --experimental-transform-types --no-warnings generate-wallets.ts",
     "seller": "node --experimental-transform-types --no-warnings --env-file=.env seller.ts",
+    "payer": "node --experimental-transform-types --no-warnings --env-file=.env payer.ts",
     "m0": "node --experimental-transform-types --no-warnings --env-file=.env spike.ts",
     "typecheck": "tsc --noEmit"
   },

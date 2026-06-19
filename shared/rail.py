@@ -13,6 +13,8 @@ from __future__ import annotations
 import hashlib
 from typing import Protocol, runtime_checkable
 
+import httpx
+
 from shared.types import CitationIntent, Receipt, SettlementStatus
 
 
@@ -61,3 +63,50 @@ class MockRail:
                 )
             )
         return receipts
+
+
+class HttpRail:
+    """Real rail: settles via the TS payer bridge (rail/m0_spike/payer.ts).
+
+    Implements the same frozen ``settle()`` as ``MockRail`` so the agent swaps
+    MockRail -> HttpRail with no other change (Phase 3 / M2). The payer does the actual
+    x402 + Gateway settlement on Arc and returns one receipt per intent, in order.
+    """
+
+    def __init__(
+        self, payer_url: str = "http://localhost:3403/settle", *, timeout: float = 120.0
+    ) -> None:
+        self.payer_url = payer_url
+        self.timeout = timeout
+
+    def settle(self, intents: list[CitationIntent]) -> list[Receipt]:
+        if not intents:
+            return []
+        payload = {
+            "intents": [
+                {
+                    "source_id": i.source_id,
+                    "author_wallet": i.author_wallet,
+                    "amount": str(i.amount),
+                }
+                for i in intents
+            ]
+        }
+        resp = httpx.post(self.payer_url, json=payload, timeout=self.timeout)
+        resp.raise_for_status()
+        receipts = resp.json().get("receipts", [])
+        by_id = {r["source_id"]: r for r in receipts}
+        out: list[Receipt] = []
+        for i in intents:
+            r = by_id.get(i.source_id)
+            if r is None:
+                out.append(Receipt(source_id=i.source_id, status=SettlementStatus.FAILED))
+                continue
+            out.append(
+                Receipt(
+                    source_id=i.source_id,
+                    tx_hash=r.get("tx_hash"),
+                    status=SettlementStatus(r.get("status", "failed")),
+                )
+            )
+        return out
