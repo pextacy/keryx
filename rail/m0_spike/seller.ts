@@ -1,0 +1,129 @@
+/**
+ * M0 seller — the citation-toll endpoint, minimal standalone form.
+ *
+ * Adapted from arc-nanopayments/lib/x402.ts (Apache-2.0, Circle — see NOTICE):
+ * the verify -> settle core is unchanged; we strip Supabase (the upstream's data
+ * layer) since chain is canonical, and serve over plain Node HTTP instead of Next.
+ * payTo is the AUTHOR wallet, so a cleared payment lands on the author — the M0 goal.
+ *
+ * This file is the seed of the real rail/cite/ endpoint (Phase 2 / M1).
+ */
+import { createServer } from "node:http";
+import { BatchFacilitatorClient } from "@circle-fin/x402-batching/server";
+
+// Verified constants — see docs/VERIFIED-SIGNATURES.md.
+const ARC_TESTNET_NETWORK = "eip155:5042002";
+const ARC_TESTNET_USDC = "0x3600000000000000000000000000000000000000";
+const ARC_TESTNET_GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+
+const AUTHOR_ADDRESS = process.env.AUTHOR_ADDRESS as `0x${string}` | undefined;
+const PORT = Number(process.env.SELLER_PORT ?? 3402);
+const TOLL = process.env.M0_TOLL ?? "0.001";
+
+if (!AUTHOR_ADDRESS) {
+  console.error("Missing AUTHOR_ADDRESS — run `npm run generate-wallets` first.");
+  process.exit(1);
+}
+
+const facilitator = new BatchFacilitatorClient();
+
+function buildRequirements(price: string) {
+  const amount = Math.round(parseFloat(price) * 1_000_000); // USDC 6 decimals
+  return {
+    scheme: "exact" as const,
+    network: ARC_TESTNET_NETWORK,
+    asset: ARC_TESTNET_USDC,
+    amount: amount.toString(),
+    payTo: AUTHOR_ADDRESS!,
+    maxTimeoutSeconds: 345600,
+    extra: {
+      name: "GatewayWalletBatched",
+      version: "1",
+      verifyingContract: ARC_TESTNET_GATEWAY_WALLET,
+    },
+  };
+}
+
+const requirements = buildRequirements(TOLL);
+const endpoint = "/cite";
+
+const server = createServer(async (req, res) => {
+  if (!req.url?.startsWith(endpoint)) {
+    res.writeHead(404).end(JSON.stringify({ error: "not found" }));
+    return;
+  }
+
+  const paymentSignature = req.headers["payment-signature"] as string | undefined;
+
+  // No payment -> 402 with Gateway-batched payment requirements.
+  if (!paymentSignature) {
+    const paymentRequired = {
+      x402Version: 2,
+      resource: {
+        url: endpoint,
+        description: `Citation toll (${TOLL} USDC)`,
+        mimeType: "application/json",
+      },
+      accepts: [requirements],
+    };
+    console.log(`[seller] 402 Payment Required: ${endpoint}`);
+    res.writeHead(402, {
+      "Content-Type": "application/json",
+      "PAYMENT-REQUIRED": Buffer.from(JSON.stringify(paymentRequired)).toString("base64"),
+    });
+    res.end(JSON.stringify({}));
+    return;
+  }
+
+  // Payment present -> verify + settle via Circle Gateway.
+  try {
+    const paymentPayload = JSON.parse(
+      Buffer.from(paymentSignature, "base64").toString("utf-8"),
+    );
+
+    const verify = await facilitator.verify(paymentPayload, requirements);
+    if (!verify.isValid) {
+      console.error(`[seller] verify failed: ${verify.invalidReason}`);
+      res.writeHead(402, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "verification failed", reason: verify.invalidReason }));
+      return;
+    }
+
+    const settle = await facilitator.settle(paymentPayload, requirements);
+    if (!settle.success) {
+      console.error(`[seller] settle failed: ${settle.errorReason}`);
+      res.writeHead(402, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "settlement failed", reason: settle.errorReason }));
+      return;
+    }
+
+    const payer = settle.payer ?? verify.payer ?? "unknown";
+    console.log(
+      `[seller] SETTLED ${TOLL} USDC from ${payer} -> author ${AUTHOR_ADDRESS}`,
+    );
+    console.log(`[seller] tx: ${settle.transaction}`);
+    console.log(`[seller] explorer: https://explorer.testnet.arc.network/tx/${settle.transaction}`);
+
+    const paymentResponse = Buffer.from(
+      JSON.stringify({
+        success: true,
+        transaction: settle.transaction,
+        network: requirements.network,
+        payer,
+      }),
+    ).toString("base64");
+
+    res.writeHead(200, { "Content-Type": "application/json", "PAYMENT-RESPONSE": paymentResponse });
+    res.end(JSON.stringify({ cited: true, source_id: "m0-source", tx_hash: settle.transaction }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[seller] error: ${message}`);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "processing error", message }));
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`[seller] M0 citation-toll seller on http://localhost:${PORT}${endpoint}`);
+  console.log(`[seller] payTo author ${AUTHOR_ADDRESS}, toll ${TOLL} USDC`);
+});

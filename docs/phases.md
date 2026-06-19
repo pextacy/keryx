@@ -65,8 +65,13 @@ Scaffolded repo, vendored upstreams with LICENSE/NOTICE, working `.env`, frozen 
 ### Deliverables
 A runnable spike script + the tx hash, viewable on the Arc explorer. Short note in repo recording the **verified** x402/Gateway/EIP-3009 signatures (so the rest of the build trusts source, not memory).
 
+### Status (2026-06-19)
+- ✅ **Signatures verified & recorded** → `docs/VERIFIED-SIGNATURES.md` (Arc constants, x402 wire shape, `@circle-fin/x402-batching` API, EIP-3009 domain) — from `arc-nanopayments` source + live RPC.
+- ✅ **Runnable spike built** → `rail/m0_spike/` (canonical SDK, Supabase stripped). Builds + typechecks against the real SDK (`tsc` exit 0); seller boots and emits a correct Gateway-batched `402`; Arc RPC reachable (`0x4cef52`).
+- ⏳ **Funded settlement — the only step left:** requires Arc testnet USDC from `faucet.circle.com` (a human/faucet action). Run order in `rail/m0_spike/README.md`: `generate-wallets` → fund BUYER → `npm run seller` → `npm run m0` → paste the tx hash below.
+
 ### DoD
-✅ **A test-USDC nanopayment from agent wallet → author wallet is confirmed on-chain and readable on the Arc explorer.** Until this is true, it is the only open task in the project.
+✅ **A test-USDC nanopayment from agent wallet → author wallet is confirmed on-chain and readable on the Arc explorer.** Until this is true, it is the only open task in the project. _(Tx hash: ____________ — fill on first cleared payment.)_
 
 ---
 

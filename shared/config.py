@@ -27,10 +27,19 @@ class Settings(BaseSettings):
         default=0.5, ge=0.0, le=1.0, description="T — pay only if g >= T"
     )
 
-    # --- Chain / rail ---
-    rpc_url: str = Field(default="", description="$RPC from arc-canteen")
-    arc_chain_id: int = Field(default=0x4CEF52, description="Arc testnet chain id")
-    usdc_address: str = Field(default="", description="USDC token contract on Arc testnet")
+    # --- Chain / rail (Arc testnet constants verified vs arc-nanopayments + live RPC) ---
+    rpc_url: str = Field(
+        default="https://rpc.testnet.arc.network", description="$RPC from arc-canteen"
+    )
+    arc_chain_id: int = Field(default=0x4CEF52, description="Arc testnet chain id (5042002)")
+    usdc_address: str = Field(
+        default="0x3600000000000000000000000000000000000000",
+        description="USDC token contract on Arc testnet (6 decimals)",
+    )
+    gateway_wallet: str = Field(
+        default="0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
+        description="Circle Gateway batching contract (x402 verifyingContract)",
+    )
 
     # --- Off-chain store (Neon — index/registry/cache only; chain is canonical) ---
     database_url: str = Field(default="", description="Neon Postgres connection string")

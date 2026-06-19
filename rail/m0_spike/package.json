@@ -1,0 +1,23 @@
+{
+  "name": "keryx-m0-spike",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "M0 gate: drive ONE test-USDC nanopayment agent->author through x402+Gateway on Arc.",
+  "scripts": {
+    "generate-wallets": "node --experimental-transform-types --no-warnings generate-wallets.ts",
+    "seller": "node --experimental-transform-types --no-warnings --env-file=.env seller.ts",
+    "m0": "node --experimental-transform-types --no-warnings --env-file=.env spike.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@circle-fin/x402-batching": "^2.0.4",
+    "@x402/core": "^2.6.0",
+    "@x402/evm": "^2.6.0",
+    "viem": "^2.47.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
