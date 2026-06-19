@@ -176,6 +176,11 @@ Generate genuine settlement volume — the 30%-weighted strategic bet. Agents ar
 ### DoD
 ✅ Numbers accumulating with team-vs-external clearly separated · ✅ ≥1 external agent integrated · ✅ targets approached/met · ✅ metrics queryable for the submission.
 
+### Status (2026-06-19) — infra built
+- ✅ **Metrics + ledger** (`agent/ledger.py`, `GET /metrics`, `GET /ledger`): total settled, distinct author wallets, citations, sessions, **team-vs-external split** — labeled exactly as the traction story needs.
+- ✅ **Fleet runner** (`agent/fleet.py`): issues query sets to accumulate volume (`--external` to label).
+- ⏳ **Real volume + external agent + Discord** need live settlement (funds) and community outreach — manual/fund-gated.
+
 ---
 
 ## Phase 6 — M5: Ship  `Day 10`  `[ALL]`
@@ -198,6 +203,10 @@ Final polish and resubmission.
 - [ ] Traction answers: agents/users onboarded, problem solved
 - [ ] Dashboard distinguishes team vs external settlement volume
 - [ ] v1 submitted ~Day 7; final resubmission Day 10
+
+### Status (2026-06-19)
+- ✅ Reviewer-ready `README.md` (architecture, quickstarts, endpoint list, status table), `NOTICE` + LICENSEs intact, repo builds clean.
+- ⏳ Video demo, live-link verification, and the form submission are human steps; they depend on the deploy + funded settlement above.
 
 ---
 
