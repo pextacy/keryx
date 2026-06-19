@@ -100,6 +100,12 @@ Both workstreams reach a working v1 in parallel: the rail does the full x402→G
 ### DoD
 ✅ `/cite` performs the complete x402→Gateway dance against real testnet · ✅ Agent returns answer + grounded citations + attestation against the mock rail · ✅ Registry seeded from RSSHub with author→wallet mappings · ✅ Both sides unit-tested.
 
+### Status (2026-06-19) — substantially done
+- ✅ **Agent (CC-B):** `agent/grounding` (similarity + judge → g, gate at T, g-scaled amount), `agent/attestation` (secp256k1 sign/verify), `agent/pipeline` + `POST /ask` against MockRail. Live HTTP smoke: 2 cited + 2 evaluated-not-cited, attestation `verified: true`. 24 tests.
+- ✅ **Registry:** RSSHub DataItem ingest + author→wallet map + seeded offline corpus.
+- ✅ **`/cite` seller (CC-A):** `rail/m0_spike/seller.ts` does the full x402→Gateway dance (verified 402; per-request payTo).
+- ⏳ Live RSSHub fetch + Neon persistence wiring optional; pgvector/LLM judge swap-in deferred (pluggable interfaces in place).
+
 ---
 
 ## Phase 3 — M2: Integration  `Day 4`  `[BOTH]`
@@ -118,6 +124,11 @@ CC-B swaps `MockRail` for CC-A's real `settle()`. First real test-USDC citation 
 
 ### DoD
 ✅ **A query settles real test-USDC to author wallets per genuinely-cited source, with a verifiable attestation whose tx hashes resolve on-chain** · ✅ evaluated-but-not-cited sources logged at $0 · ✅ `citations_index` reconciles with chain.
+
+### Status (2026-06-19) — bridge built, awaiting funds
+- ✅ **Rail-language decision resolved** (DECISIONS.md): rail TS, agent Python, bridged over the frozen contract.
+- ✅ **Bridge built:** `rail/m0_spike/payer.ts` (`POST /settle {intents}→{receipts}`, GatewayClient.pay per cited author) + `shared.rail.HttpRail` implementing the same frozen `settle()` as MockRail. The agent pipeline runs **unchanged** against `HttpRail` (tests mock the bridge) — the M2 swap is a one-line wiring change.
+- ⏳ **Live settlement pending M0 funds (OTP):** the on-chain run + tx-resolves-on-explorer + `citations_index` reconcile happen the moment the buyer wallet is funded.
 
 ---
 
@@ -139,6 +150,11 @@ The public ask page + live ledger, deployed. A stranger asks a question and watc
 
 ### DoD
 ✅ Deployed Vercel link works from a clean browser · ✅ A stranger can ask → see inline citations → watch USDC land on an author wallet → see it in the ledger · ✅ Ledger reads from chain · ✅ Open `/ask` documented · ✅ **v1 submitted via the form on Day 7** (resubmission allowed).
+
+### Status (2026-06-19) — surface built
+- ✅ **Ask page** (`web/app/page.tsx`): query → `/api/ask` proxy → answer + cited-&-paid (g, amount, tx link) + **evaluated-not-cited at $0** + attestation with verified badge + total settled.
+- ✅ Production build green (`pnpm build`: `/` static, `/api/ask` dynamic); typechecks against real Next types; CI builds the web app.
+- ⏳ Vercel deploy + chain-backed `GET /ledger` (viem) + live USDC visuals land once settlements are real (M0 funds). Submission (v1) is a manual step.
 
 ---
 

@@ -45,5 +45,5 @@ jobs:
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Install
         run: pnpm install --frozen-lockfile || pnpm install
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Build (typechecks + generates route types)
+        run: pnpm build
