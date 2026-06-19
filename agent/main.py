@@ -18,7 +18,9 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from agent.attestation import AttestationSigner, verify_attestation
+from agent.factory import build_answerer, build_scorer
 from agent.ledger import Ledger
+from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
 from registry.fixtures import seeded_registry
 from shared.config import settings
@@ -35,7 +37,14 @@ rail: Rail = MockRail()
 registry = seeded_registry()
 _agent_key = settings.agent_private_key or Account.create().key.hex()
 signer = AttestationSigner(_agent_key)
-pipeline = AskPipeline(store=registry, rail=rail, signer=signer)
+# Real Claude judge + answerer when KERYX_ANTHROPIC_API_KEY is set; heuristics otherwise.
+pipeline = AskPipeline(
+    store=registry,
+    rail=rail,
+    signer=signer,
+    scorer=build_scorer(settings),
+    answerer=build_answerer(settings),
+)
 ledger = Ledger()
 
 
@@ -48,17 +57,28 @@ class AskRequest(BaseModel):
 
 @app.get("/healthz")
 def healthz() -> dict[str, Any]:
-    return {"status": "ok", "service": "agent", "rail": type(rail).__name__}
+    return {
+        "status": "ok",
+        "service": "agent",
+        "rail": type(rail).__name__,
+        "llm": llm_enabled(settings),
+    }
 
 
 @app.get("/config")
 def config() -> dict[str, Any]:
+    enabled = llm_enabled(settings)
     return {
         "grounding_threshold": settings.grounding_threshold,
-        "judge_model": settings.judge_model,
         "rail": type(rail).__name__,
         "agent_pubkey": signer.address,
         "sources_indexed": len(registry.all()),
+        # Which grounding/answer path is live — Claude when a key is set, else heuristic.
+        "llm_enabled": enabled,
+        "judge": type(pipeline.scorer.judge).__name__,
+        "answerer": type(pipeline.answerer).__name__,
+        "judge_model": settings.judge_model if enabled else None,
+        "answer_model": settings.answer_model_resolved if enabled else None,
     }
 
 

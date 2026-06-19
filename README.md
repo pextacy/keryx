@@ -19,6 +19,9 @@ registry/  author->wallet map + RSSHub ingest                               (CC-
 web/       Next.js ask page + live ledger (chain reads via viem)
 shared/    frozen contract: CitationIntent, Receipt, Attestation, Rail
 db/        Neon migrations (index/registry/cache only — chain is canonical)
+contracts/ on-chain attribution layer (Foundry): ERC-8004-inspired identity/reputation/
+           validation + signed-attestation log + weighted citation splitter (USDC still
+           settles via Circle Gateway — we don't reimplement it)
 ```
 
 **Chain is the ledger.** Settlement clears on Arc; Postgres (Neon + pgvector) holds only
@@ -42,7 +45,7 @@ python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env                  # optional; sane defaults built in
 
-pytest                                # 31 tests (contract, grounding, attestation, pipeline, ledger)
+pytest                                # 41 tests (contract, grounding, LLM judge/answerer, attestation, pipeline, ledger)
 uvicorn agent.main:app --reload       # CC-B -> http://127.0.0.1:8000
 
 # Ask a question (full citation loop against the mock rail):
@@ -96,6 +99,9 @@ python scripts/db_check.py           # verifies reachability + pgvector + schema
 2. The agent retrieves candidate sources (RSSHub `DataItem.link` + `author`).
 3. The agent generates an answer.
 4. **Grounding verifier** (`agent/grounding/`, the moat): similarity + LLM-judge → `g ∈ [0,1]`.
+   The judge is Claude (`AnthropicJudge`, per-claim `supported|partial|unsupported` via
+   structured outputs) when `KERYX_ANTHROPIC_API_KEY` is set, else a deterministic offline
+   heuristic — same interface, so CI and the zero-config demo stay reproducible.
 5. For each source with `g ≥ T`, settle a citation toll: x402 → Gateway batch → Arc.
 6. The agent emits a **signed attestation** (`agent/attestation/`) mapping answer → sources → amounts → tx hashes.
 7. The dashboard reads the **chain** (canonical) and renders live.
@@ -110,11 +116,12 @@ Circle faucet (your authentication) — see `SETUP.md`.
 | --- | --- | --- |
 | 0 Foundation | scaffold, frozen contract, Neon schema, CI, licensing | — ✅ |
 | 1 M0 rail spike | verified signatures, runnable spike, seller emits correct 402 | funded tx (faucet) |
-| 2 M1 agent | grounding moat + attestation + `/ask` + registry (24 tests) | — ✅ |
+| 2 M1 agent | grounding moat (Claude judge + answerer, heuristic fallback) + attestation + `/ask` + registry (41 tests) | — ✅ |
 | 3 M2 integration | TS payer bridge + `HttpRail`; pipeline runs unchanged against it | live settlement (funds) |
 | 4 M3 surface | ask page + `/ledger` + attestation viewer; prod build green | Vercel deploy + funds |
 | 5 M4 traction | ledger, team-vs-external metrics, fleet runner | real volume (funds) + Discord |
 | 6 M5 ship | reviewer-ready README, NOTICE | video + form submission |
+| On-chain layer | Foundry suite: ERC-8004-inspired identity/reputation/validation, signed-attestation registry, weighted splitter, settlement orchestrator (18 forge tests) | testnet deploy (funds) |
 
 See [`docs/phases.md`](docs/phases.md) for per-phase detail and [`DECISIONS.md`](DECISIONS.md)
 for resolved decisions.

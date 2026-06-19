@@ -104,7 +104,8 @@ Both workstreams reach a working v1 in parallel: the rail does the full x402→G
 - ✅ **Agent (CC-B):** `agent/grounding` (similarity + judge → g, gate at T, g-scaled amount), `agent/attestation` (secp256k1 sign/verify), `agent/pipeline` + `POST /ask` against MockRail. Live HTTP smoke: 2 cited + 2 evaluated-not-cited, attestation `verified: true`. 24 tests.
 - ✅ **Registry:** RSSHub DataItem ingest + author→wallet map + seeded offline corpus.
 - ✅ **`/cite` seller (CC-A):** `rail/m0_spike/seller.ts` does the full x402→Gateway dance (verified 402; per-request payTo).
-- ⏳ Live RSSHub fetch + Neon persistence wiring optional; pgvector/LLM judge swap-in deferred (pluggable interfaces in place).
+- ✅ **Production LLM moat wired:** `AnthropicJudge` (per-claim `supported|partial|unsupported` via Claude structured outputs, `claude-opus-4-8`) + `AnthropicAnswerer` (Claude answer synthesis) auto-activate when `KERYX_ANTHROPIC_API_KEY` is set, and degrade to the deterministic offline heuristics (CI/demo default) on any API error. `/config` reports which path is live.
+- ⏳ Live RSSHub fetch + Neon persistence + pgvector similarity deferred (pluggable interfaces in place; dense-embedding similarity is the remaining swap).
 
 ---
 

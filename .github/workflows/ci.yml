@@ -27,6 +27,22 @@ jobs:
       - name: Test (pytest)
         run: pytest
 
+  contracts:
+    name: Contracts (Foundry)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install deps (forge-std)
+        run: forge install foundry-rs/forge-std --no-git
+      - name: Build
+        run: forge build --sizes
+      - name: Test
+        run: forge test -vvv
+
   web:
     name: Web (Next.js)
     runs-on: ubuntu-latest

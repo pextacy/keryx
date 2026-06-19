@@ -42,6 +42,46 @@ rules say not to do.
 contract is language-agnostic in shape and the Python scaffold follows the documented
 plan. Resolve before Phase 2 (M1), since it decides what `rail/` is written in.
 
+## RESOLVED (2026-06-19) — Grounding moat runs on Claude, with an offline fallback
+
+**Decision:** The grounding judge and answer synthesis are now real Claude calls, not
+just the lexical heuristic. `AnthropicJudge` (`agent/grounding/judge.py`) asks
+`claude-opus-4-8` for per-claim `supported|partial|unsupported` verdicts via structured
+outputs (adaptive thinking, effort-tunable); `AnthropicAnswerer` (`agent/answerer.py`)
+synthesizes the answer from retrieved sources. Both sit behind the existing
+`Judge`/`Answerer` protocols and are selected by `agent/factory.py`:
+- `KERYX_ANTHROPIC_API_KEY` set → Claude path (the production moat).
+- unset → the deterministic offline heuristics (CI/demo default — no network, reproducible).
+
+Both LLM classes **degrade to the heuristic on any API error**, so a key/quota/network
+problem never breaks the citation loop; the grounding rationale records which judge
+actually decided (`[claude:…]` vs `[fallback:heuristic]`). `/config` and `/healthz`
+report the live mode. Models/effort/max-tokens are config (`KERYX_*`), never hardcoded.
+The remaining grounding swap is dense-embedding similarity (pgvector); the TF-cosine
+similarity signal stays as the documented v1.
+
+## RESOLVED (2026-06-20) — On-chain attribution layer (`contracts/`), settlement stays on Circle Gateway
+
+**Decision:** Added an optional on-chain attribution layer under `contracts/` (Foundry,
+Solidity 0.8.24) that puts the moat on-chain: an **ERC-8004-inspired triad**
+(`IdentityRegistry` / `ReputationRegistry` / `ValidationRegistry`), a signed-attestation
+log (`CitationRegistry`, EIP-712 verify + replay guard), on-chain economics (`KeryxToll`,
+mirrors `shared/config.py`), a weighted **`CitationSplitter`** (the recursive/weighted-split
+innovation), and a `KeryxSettlement` orchestrator that enforces *pay-on-citation* (g < T
+reverts). 18 forge tests green; deploy script + CI job added. PRD §3/§6 flagged ERC-8004
+reputation and weighted split as innovation/future — this realizes them.
+
+**USDC settlement still clears through Circle Gateway** (pre-deployed on Arc, `0x0077…19B9`).
+We do **not** reimplement x402/Gateway (ground rule #1). These contracts are the *attribution*
+layer alongside that rail, not a replacement for it.
+
+**On count:** the right number of contracts is driven by responsibility, not a target. A
+request for "100–150 contracts" (or one-per-author) is an EVM anti-pattern — all authors are
+rows in **one** `IdentityRegistry` mapping (`test_identity_scales_to_200_authors` proves 200
+identities in a single contract). The suite is 7 contracts + 3 interfaces + 3 libraries +
+`Owned` + a test `MockUSDC` (15 source units). Deploying hundreds of contracts would multiply
+gas/deploy cost with zero benefit; no serious protocol does it.
+
 ## NOTED — arc-nanopayments ships a `supabase/` directory
 
 Upstream uses Supabase; our ground rules forbid Supabase anywhere (use Neon). When we

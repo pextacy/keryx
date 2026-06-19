@@ -32,6 +32,8 @@ Additional upstreams pulled at later phases (attribution added on vendoring):
    - viem                           (MIT)          — chain reads
    - the-canteen-dev/ARC-cli        (verify)       — dev tooling (used, not forked)
    - the-canteen-dev/context-arc    (verify)       — Arc/Circle agent context
+   - foundry-rs/forge-std           (MIT/Apache-2) — Solidity test lib (contracts/, dev-only)
+   - anthropic (Python SDK)         (MIT)          — Claude grounding judge + answerer
 
 Verify each LICENSE the moment it is cloned — it is a 5-second check that ships in
 the submitted repo (docs.md).

@@ -47,9 +47,20 @@ class Settings(BaseSettings):
     # --- Source ingest ---
     rsshub_base_url: str = Field(default="http://localhost:1200")
 
-    # --- LLM (grounding judge) ---
+    # --- LLM (grounding judge + answer synthesis) ---
+    # Real Claude path activates when anthropic_api_key is set; offline heuristics otherwise.
     anthropic_api_key: str = Field(default="")
     judge_model: str = Field(default="claude-opus-4-8")
+    answer_model: str = Field(
+        default="", description="Model for answer synthesis; falls back to judge_model"
+    )
+    judge_effort: str = Field(default="low", description="effort for the grounding judge")
+    answer_effort: str = Field(default="medium", description="effort for answer synthesis")
+    llm_max_tokens: int = Field(default=4096, ge=256)
+
+    @property
+    def answer_model_resolved(self) -> str:
+        return self.answer_model or self.judge_model
 
     # --- Grounding score weighting (similarity vs judge) ---
     similarity_weight: float = Field(default=0.4, ge=0.0, le=1.0)
