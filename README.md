@@ -24,6 +24,17 @@ db/        Neon migrations (index/registry/cache only — chain is canonical)
 **Chain is the ledger.** Settlement clears on Arc; Postgres (Neon + pgvector) holds only
 a fast read-index, the author→wallet registry, and a source cache. Never Supabase.
 
+## One-command demo (zero funds)
+
+```bash
+python3.11 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+make demo     # starts the agent, runs the full citation loop + fleet, prints metrics
+```
+
+Shows the whole system working (answer → grounded citations → settlement → verified
+attestation → traction metrics) against the mock rail — no testnet funds needed. For
+real on-chain settlement, see "The rail" below.
+
 ## Quickstart (Python: agent + grounding moat)
 
 ```bash
