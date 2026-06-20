@@ -17,7 +17,8 @@ from decimal import Decimal
 from typing import Any
 
 from eth_account import Account
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from agent.attestation import AttestationSigner, verify_attestation
@@ -35,6 +36,7 @@ from agent.grounding.embeddings import VoyageEmbedder
 from agent.ledger_verify import annotate_recent
 from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
+from agent.security import RateLimiter, require_api_key
 from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
@@ -78,6 +80,19 @@ app = FastAPI(
     summary="Research agent + grounding verifier + attestation (CC-B)",
     lifespan=lifespan,
 )
+
+# Per-IP rate limiting across all endpoints; disabled (pass-through) unless configured.
+_rate_limiter = RateLimiter(settings.rate_limit_per_minute)
+
+
+@app.middleware("http")
+async def _rate_limit(request: Request, call_next: Any) -> Any:
+    if _rate_limiter.enabled:
+        client = request.client.host if request.client else "unknown"
+        if not _rate_limiter.allow(client):
+            return JSONResponse({"detail": "rate limit exceeded"}, status_code=429)
+    return await call_next(request)
+
 
 # Rail comes from config: MockRail by default, HttpRail when KERYX_RAIL=http (Phase 3 / M2).
 # Store + ledger are Neon-backed when KERYX_DATABASE_URL is set, else in-memory (default).
@@ -258,7 +273,7 @@ class ReputationRequest(BaseModel):
     tag: str = Field(default="keryx_grounded_citation")
 
 
-@app.post("/reputation")
+@app.post("/reputation", dependencies=[Depends(require_api_key)])
 def reputation(req: ReputationRequest) -> dict[str, Any]:
     """Record grounding-derived reputation on-chain (opt-in; requires a signing key).
 
@@ -367,7 +382,7 @@ class PayoutRequest(BaseModel):
     contributors: list[PayoutRecipient] = Field(min_length=1)
 
 
-@app.post("/payout")
+@app.post("/payout", dependencies=[Depends(require_api_key)])
 def payout(req: PayoutRequest) -> dict[str, Any]:
     """Split one payment across all credited contributors and settle each share (Prior Art 04).
 
@@ -460,7 +475,7 @@ def _escrow_anchor(bond: Any) -> dict[str, Any] | None:
         return {"error": type(exc).__name__}
 
 
-@app.post("/bond")
+@app.post("/bond", dependencies=[Depends(require_api_key)])
 def post_bond(req: BondRequest) -> dict[str, Any]:
     """Post a USDC reputation bond standing behind a match (PA 08 / RFB 3).
 
@@ -483,7 +498,7 @@ def get_bond(bond_id: str) -> dict[str, Any]:
     return {"found": True, **_bond_view(bond)}
 
 
-@app.post("/bond/{bond_id}/resolve")
+@app.post("/bond/{bond_id}/resolve", dependencies=[Depends(require_api_key)])
 def resolve_bond(bond_id: str, req: ResolveRequest) -> dict[str, Any]:
     """Resolve a bond: release to the provider on a pass, or slash to the claimant on a fail.
 
@@ -538,7 +553,7 @@ def _stream_view(s: Any) -> dict[str, Any]:
     }
 
 
-@app.post("/stream")
+@app.post("/stream", dependencies=[Depends(require_api_key)])
 def open_stream(req: StreamRequest) -> dict[str, Any]:
     """Open a per-second payment stream (RFB 4): approve a rate, bill by the second."""
     s = streams.open(payer=req.payer, payee=req.payee, rate=req.rate)
@@ -560,7 +575,7 @@ def _tick_response(stream_id: str, billed: Decimal) -> dict[str, Any]:
     return {**_stream_view(s), "billed": str(billed), "tx_hash": tx_hash}
 
 
-@app.post("/stream/{stream_id}/tick")
+@app.post("/stream/{stream_id}/tick", dependencies=[Depends(require_api_key)])
 def tick_stream(stream_id: str, req: TickRequest) -> dict[str, Any]:
     """Bill ``seconds`` of flow and settle the newly-accrued micro-USDC to the payee."""
     try:
@@ -572,7 +587,7 @@ def tick_stream(stream_id: str, req: TickRequest) -> dict[str, Any]:
     return _tick_response(stream_id, billed)
 
 
-@app.post("/stream/{stream_id}/pause")
+@app.post("/stream/{stream_id}/pause", dependencies=[Depends(require_api_key)])
 def pause_stream(stream_id: str) -> dict[str, Any]:
     try:
         s = streams.pause(stream_id)
@@ -581,7 +596,7 @@ def pause_stream(stream_id: str) -> dict[str, Any]:
     return _stream_view(s)
 
 
-@app.post("/stream/{stream_id}/resume")
+@app.post("/stream/{stream_id}/resume", dependencies=[Depends(require_api_key)])
 def resume_stream(stream_id: str) -> dict[str, Any]:
     try:
         s = streams.resume(stream_id)
@@ -590,7 +605,7 @@ def resume_stream(stream_id: str) -> dict[str, Any]:
     return _stream_view(s)
 
 
-@app.post("/stream/{stream_id}/close")
+@app.post("/stream/{stream_id}/close", dependencies=[Depends(require_api_key)])
 def close_stream(stream_id: str) -> dict[str, Any]:
     """Close the stream and settle any final billable micro-USDC."""
     try:
@@ -620,7 +635,7 @@ class RoyaltiesRequest(BaseModel):
     min_count: int = Field(default=1, ge=1, description="Play-gate: fewer plays earn nothing")
 
 
-@app.post("/royalties")
+@app.post("/royalties", dependencies=[Depends(require_api_key)])
 def royalties(req: RoyaltiesRequest) -> dict[str, Any]:
     """User-centric royalties (PA 05): a listener's budget goes only to the creators they
     actually played, split by real play counts. Play-gating drops sub-threshold engagement —
@@ -675,7 +690,7 @@ class QfRequest(BaseModel):
     projects: list[QfProject] = Field(min_length=1)
 
 
-@app.post("/qf")
+@app.post("/qf", dependencies=[Depends(require_api_key)])
 def qf(req: QfRequest) -> dict[str, Any]:
     """Quadratic-funding match (PA 03/07): distribute a pool by breadth of support — a
     project backed by many small contributions beats one backed by a single large donor.
