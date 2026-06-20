@@ -42,6 +42,7 @@ from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
 from shared.streaming import StreamBook, StreamClosed
+from shared.traction import TractionBook
 from shared.types import CitationIntent, SettlementStatus
 
 
@@ -109,16 +110,21 @@ _circle = build_circle_wallets(settings)
 bonds = BondBook()
 # Streaming payments (RFB 4): each tick settles the newly-accrued micro-USDC via the rail.
 streams = StreamBook()
+# Traction: rolls up settled volume across every primitive (the 30%-weighted judging axis).
+traction = TractionBook()
 
 
-def _settle_to(source_id: str, wallet: str, amount: Decimal) -> str | None:
-    """Settle one amount to a wallet through the active rail; None if nothing/failed."""
+def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
+    """Settle one amount to a wallet through the active rail; record traction. None on fail."""
     if amount <= 0:
         return None
     intent = CitationIntent(source_id=source_id, author_wallet=wallet, amount=amount)
     receipts = rail.settle([intent])
     rc = receipts[0] if receipts else None
-    return rc.tx_hash if rc is not None and rc.status is SettlementStatus.SETTLED else None
+    if rc is not None and rc.status is SettlementStatus.SETTLED:
+        traction.record(kind, amount)
+        return rc.tx_hash
+    return None
 
 
 def _embedder_status() -> dict[str, Any]:
@@ -383,6 +389,7 @@ def payout(req: PayoutRequest) -> dict[str, Any]:
         settled = rc is not None and rc.status is SettlementStatus.SETTLED and bool(rc.tx_hash)
         if settled and rc is not None:
             total_settled += amt
+            traction.record("payout", amt)
         recipients.append(
             {
                 "wallet": c.wallet,
@@ -465,6 +472,7 @@ def resolve_bond(bond_id: str, req: ResolveRequest) -> dict[str, Any]:
         rc = receipts[0] if receipts else None
         if rc is not None and rc.status is SettlementStatus.SETTLED:
             tx_hash = rc.tx_hash
+            traction.record("bond", bond.amount)
     return {**_bond_view(bond), "tx_hash": tx_hash}
 
 
@@ -514,7 +522,7 @@ def get_stream(stream_id: str) -> dict[str, Any]:
 def _tick_response(stream_id: str, billed: Decimal) -> dict[str, Any]:
     s = streams.get(stream_id)
     assert s is not None
-    tx_hash = _settle_to(f"stream:{stream_id}:{s.settled}", s.payee, billed)
+    tx_hash = _settle_to(f"stream:{stream_id}:{s.settled}", s.payee, billed, kind="stream")
     return {**_stream_view(s), "billed": str(billed), "tx_hash": tx_hash}
 
 
@@ -596,7 +604,7 @@ def royalties(req: RoyaltiesRequest) -> dict[str, Any]:
     recipients: list[dict[str, Any]] = []
     total_settled = Decimal(0)
     for i, (play, (c, amt)) in enumerate(zip(eligible, pairs, strict=True)):
-        tx_hash = _settle_to(f"royalty:{i}", c.wallet, amt)
+        tx_hash = _settle_to(f"royalty:{i}", c.wallet, amt, kind="royalty")
         if tx_hash is not None:
             total_settled += amt
         recipients.append(
@@ -644,7 +652,7 @@ def qf(req: QfRequest) -> dict[str, Any]:
     projects: list[dict[str, Any]] = []
     total_settled = Decimal(0)
     for i, (p, match) in enumerate(pairs):
-        tx_hash = _settle_to(f"qf:{i}", p.wallet, match)
+        tx_hash = _settle_to(f"qf:{i}", p.wallet, match, kind="qf")
         if tx_hash is not None:
             total_settled += match
         projects.append(
@@ -658,6 +666,12 @@ def qf(req: QfRequest) -> dict[str, Any]:
             }
         )
     return {"pool": str(req.pool), "projects": projects, "total_matched": str(total_settled)}
+
+
+@app.get("/traction")
+def get_traction() -> dict[str, Any]:
+    """Settled volume rolled up across every primitive — the traction story in one call."""
+    return traction.summary()
 
 
 @app.get("/metrics")

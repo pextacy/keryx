@@ -84,6 +84,12 @@ export interface IdentityResponse {
   error?: string;
 }
 
+export interface TractionResponse {
+  total_volume_usdc: string;
+  total_payments: number;
+  by_kind: Record<string, { count: number; volume_usdc: string }>;
+}
+
 export interface JobResponse {
   enabled: boolean;
   found?: boolean;
