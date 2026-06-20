@@ -59,7 +59,9 @@ make capabilities-demo    # boots the agent, drives every primitive, prints roll
 ```
 
 Full reference with copy-paste `curl` for each: [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
-A live UI for all of them is the web **`/capabilities`** dashboard.
+A live UI for all of them is the web **`/capabilities`** dashboard:
+
+![Capabilities dashboard](web/capabilities-dashboard.png)
 
 ## Quickstart (Python: agent + grounding moat)
 
