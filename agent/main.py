@@ -559,6 +559,62 @@ def close_stream(stream_id: str) -> dict[str, Any]:
     return _tick_response(stream_id, billed)
 
 
+class Play(BaseModel):
+    wallet: str = Field(description="0x wallet of the creator")
+    count: int = Field(ge=0, description="Real plays/citations in the window")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class RoyaltiesRequest(BaseModel):
+    budget: Decimal = Field(gt=0, description="The listener's budget for the window")
+    plays: list[Play] = Field(min_length=1)
+    min_count: int = Field(default=1, ge=1, description="Play-gate: fewer plays earn nothing")
+
+
+@app.post("/royalties")
+def royalties(req: RoyaltiesRequest) -> dict[str, Any]:
+    """User-centric royalties (PA 05): a listener's budget goes only to the creators they
+    actually played, split by real play counts. Play-gating drops sub-threshold engagement —
+    a skip in the first seconds costs nothing."""
+    eligible = [p for p in req.plays if p.count >= req.min_count]
+    gated_out = len(req.plays) - len(eligible)
+    if not eligible:
+        return {
+            "budget": str(req.budget),
+            "recipients": [],
+            "total_settled": "0",
+            "gated_out": gated_out,
+        }
+    pairs = split_payout(req.budget, [Contributor(p.wallet, Decimal(p.count)) for p in eligible])
+    recipients: list[dict[str, Any]] = []
+    total_settled = Decimal(0)
+    for i, (play, (c, amt)) in enumerate(zip(eligible, pairs, strict=True)):
+        tx_hash = _settle_to(f"royalty:{i}", c.wallet, amt)
+        if tx_hash is not None:
+            total_settled += amt
+        recipients.append(
+            {
+                "wallet": c.wallet,
+                "plays": play.count,
+                "amount": str(amt),
+                "settled": tx_hash is not None,
+                "tx_hash": tx_hash,
+            }
+        )
+    return {
+        "budget": str(req.budget),
+        "recipients": recipients,
+        "total_settled": str(total_settled),
+        "gated_out": gated_out,
+    }
+
+
 @app.get("/metrics")
 def metrics() -> dict[str, Any]:
     """Traction metrics — the numbers we lead with (prd.md §8)."""
