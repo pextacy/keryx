@@ -38,6 +38,7 @@ from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
+from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
 from shared.streaming import StreamBook, StreamClosed
@@ -613,6 +614,50 @@ def royalties(req: RoyaltiesRequest) -> dict[str, Any]:
         "total_settled": str(total_settled),
         "gated_out": gated_out,
     }
+
+
+class QfProject(BaseModel):
+    wallet: str = Field(description="0x wallet of the project")
+    contributions: list[Decimal] = Field(default_factory=list, description="Backer amounts")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class QfRequest(BaseModel):
+    pool: Decimal = Field(gt=0, description="Match pool to distribute")
+    projects: list[QfProject] = Field(min_length=1)
+
+
+@app.post("/qf")
+def qf(req: QfRequest) -> dict[str, Any]:
+    """Quadratic-funding match (PA 03/07): distribute a pool by breadth of support — a
+    project backed by many small contributions beats one backed by a single large donor.
+    Settles each project's match through the rail."""
+    pairs = quadratic_match(
+        req.pool, [Project(p.wallet, list(p.contributions)) for p in req.projects]
+    )
+    projects: list[dict[str, Any]] = []
+    total_settled = Decimal(0)
+    for i, (p, match) in enumerate(pairs):
+        tx_hash = _settle_to(f"qf:{i}", p.wallet, match)
+        if tx_hash is not None:
+            total_settled += match
+        projects.append(
+            {
+                "wallet": p.wallet,
+                "backers": len(p.contributions),
+                "direct_total": str(sum(p.contributions, Decimal(0))),
+                "match": str(match),
+                "settled": tx_hash is not None,
+                "tx_hash": tx_hash,
+            }
+        )
+    return {"pool": str(req.pool), "projects": projects, "total_matched": str(total_settled)}
 
 
 @app.get("/metrics")
