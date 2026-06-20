@@ -20,12 +20,21 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from agent.attestation import AttestationSigner, verify_attestation
-from agent.factory import build_answerer, build_embedder, build_scorer
+from agent.factory import (
+    build_answerer,
+    build_chain_reader,
+    build_circle_wallets,
+    build_embedder,
+    build_erc8004,
+    build_erc8183,
+    build_ledger,
+    build_scorer,
+)
 from agent.grounding.embeddings import VoyageEmbedder
-from agent.ledger import Ledger
+from agent.ledger_verify import annotate_recent
 from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
-from registry.fixtures import seeded_registry
+from registry.factory import build_store
 from shared.config import settings
 from shared.rail import MockRail, Rail
 
@@ -33,9 +42,17 @@ from shared.rail import MockRail, Rail
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
-    # Release the long-lived pooled Voyage client on shutdown (idempotent, no-op offline).
+    # Release long-lived pooled clients on shutdown (idempotent, no-ops when offline).
     if isinstance(_embedder, VoyageEmbedder):
         _embedder.close()
+    if _chain_reader is not None:
+        _chain_reader.close()
+    if _erc8004 is not None:
+        _erc8004.close()
+    if _erc8183 is not None:
+        _erc8183.close()
+    if _circle is not None:
+        _circle.close()
 
 
 app = FastAPI(
@@ -46,8 +63,9 @@ app = FastAPI(
 )
 
 # Phase 2: mock rail + offline seeded registry. Phase 3 swaps in the real settle().
+# Store + ledger are Neon-backed when KERYX_DATABASE_URL is set, else in-memory (default).
 rail: Rail = MockRail()
-registry = seeded_registry()
+registry = build_store(settings)
 _agent_key = settings.agent_private_key or Account.create().key.hex()
 signer = AttestationSigner(_agent_key)
 # Real Claude judge + answerer when KERYX_ANTHROPIC_API_KEY is set; heuristics otherwise.
@@ -62,7 +80,15 @@ pipeline = AskPipeline(
     answerer=build_answerer(settings),
     embedder=_embedder,
 )
-ledger = Ledger()
+ledger = build_ledger(settings)
+# Chain reader for verifiable /ledger; None (default) -> mirror response, no RPC reads.
+_chain_reader = build_chain_reader(settings)
+# ERC-8004 identity/reputation client; None (default) -> endpoints report disabled, no RPC.
+_erc8004 = build_erc8004(settings)
+# ERC-8183 job-escrow client; None (default) -> /job reports disabled, no RPC.
+_erc8183 = build_erc8183(settings)
+# Circle W3S wallets client; None (default) -> /circle endpoints report disabled, no network.
+_circle = build_circle_wallets(settings)
 
 
 def _embedder_status() -> dict[str, Any]:
@@ -160,6 +186,126 @@ def ask(req: AskRequest) -> dict[str, Any]:
     }
 
 
+@app.get("/identity")
+def identity() -> dict[str, Any]:
+    """The agent's ERC-8004 on-chain identity (opt-in; KERYX_ERC8004_ENABLED).
+
+    Ties the attestation pubkey to a registered agent. Disabled by default (no RPC reads);
+    degrades to ``registered: false`` if the agent has not registered or RPC is unreachable.
+    """
+    if _erc8004 is None:
+        return {"enabled": False, "agent_address": signer.address}
+    try:
+        ident = _erc8004.identity(signer.address)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky RPC
+        return {"enabled": True, "agent_address": signer.address, "error": type(exc).__name__}
+    if ident is None:
+        return {"enabled": True, "agent_address": signer.address, "registered": False}
+    return {
+        "enabled": True,
+        "agent_address": signer.address,
+        "registered": True,
+        "agent_id": ident.agent_id,
+        "owner": ident.owner,
+        "metadata_uri": ident.metadata_uri,
+    }
+
+
+class ReputationRequest(BaseModel):
+    agent_id: int = Field(ge=0, description="ERC-8004 agent id of the author/agent being rated")
+    g: float = Field(ge=0.0, le=1.0, description="Grounding score -> reputation (round(100*g))")
+    tag: str = Field(default="keryx_grounded_citation")
+
+
+@app.post("/reputation")
+def reputation(req: ReputationRequest) -> dict[str, Any]:
+    """Record grounding-derived reputation on-chain (opt-in; requires a signing key).
+
+    Keryx rates as an external verifier (ERC-8004 forbids self-rating). Returns the tx hash.
+    """
+    if _erc8004 is None:
+        return {"enabled": False, "recorded": False, "reason": "erc8004 disabled"}
+    if not _erc8004.can_write:
+        return {"enabled": True, "recorded": False, "reason": "no agent signing key configured"}
+    tx_hash = _erc8004.give_feedback(req.agent_id, g=req.g, tag=req.tag)
+    return {"enabled": True, "recorded": True, "agent_id": req.agent_id, "tx_hash": tx_hash}
+
+
+@app.get("/validation/{request_hash}")
+def validation(request_hash: str) -> dict[str, Any]:
+    """Read an ERC-8004 ValidationRegistry status (opt-in; KERYX_ERC8004_ENABLED).
+
+    Lets clients audit whether a verifier validated an agent's grounding claim on-chain
+    (100=passed / 0=failed). Disabled by default; a flaky RPC or malformed hash degrades to
+    an ``error`` field rather than a 500.
+    """
+    if _erc8004 is None:
+        return {"enabled": False}
+    try:
+        status = _erc8004.validation_status(request_hash)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky RPC or bad hash
+        return {"enabled": True, "request_hash": request_hash, "error": type(exc).__name__}
+    if status is None:
+        return {"enabled": True, "request_hash": request_hash, "found": False}
+    return {
+        "enabled": True,
+        "request_hash": request_hash,
+        "found": True,
+        "validator": status.validator,
+        "agent_id": status.agent_id,
+        "response": status.response,
+        "passed": status.passed,
+        "tag": status.tag,
+        "last_update": status.last_update,
+    }
+
+
+@app.get("/job/{job_id}")
+def job(job_id: int) -> dict[str, Any]:
+    """Read an ERC-8183 AgenticCommerce job's on-chain state (opt-in; KERYX_ERC8183_ENABLED).
+
+    A research/citation job with USDC escrow: status moves Open->Funded->Submitted->Completed
+    as the agent (provider) delivers. Disabled by default; a flaky RPC degrades to ``error``.
+    """
+    if _erc8183 is None:
+        return {"enabled": False}
+    try:
+        j = _erc8183.get_job(job_id)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky RPC
+        return {"enabled": True, "job_id": job_id, "error": type(exc).__name__}
+    if j is None:
+        return {"enabled": True, "job_id": job_id, "found": False}
+    return {
+        "enabled": True,
+        "job_id": j.id,
+        "found": True,
+        "client": j.client,
+        "provider": j.provider,
+        "evaluator": j.evaluator,
+        "description": j.description,
+        "budget_usdc": str(j.budget),
+        "expired_at": j.expired_at,
+        "status": j.status.name,
+        "hook": j.hook,
+    }
+
+
+@app.get("/circle/transaction/{tx_id}")
+def circle_transaction(tx_id: str) -> dict[str, Any]:
+    """Read a Circle W3S transaction's status (opt-in; KERYX_CIRCLE_API_KEY).
+
+    Lets the agent track a wallet-provisioned tx (e.g. ERC-8004 register / ERC-8183 fund)
+    submitted via Circle. Disabled by default; a flaky API degrades to an ``error`` field.
+    """
+    if _circle is None:
+        return {"enabled": False}
+    try:
+        tx = _circle.get_transaction(tx_id)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky upstream
+        return {"enabled": True, "tx_id": tx_id, "error": type(exc).__name__}
+    return {"enabled": True, "tx_id": tx_id, "transaction": tx}
+
+
 @app.get("/metrics")
 def metrics() -> dict[str, Any]:
     """Traction metrics — the numbers we lead with (prd.md §8)."""
@@ -168,5 +314,22 @@ def metrics() -> dict[str, Any]:
 
 @app.get("/ledger")
 def get_ledger(limit: int = 50) -> dict[str, Any]:
-    """Settlement ledger for the dashboard. Mirrors chain; chain stays canonical."""
-    return {"metrics": ledger.metrics(), "recent": ledger.recent(limit)}
+    """Settlement ledger for the dashboard. Mirrors chain; chain stays canonical.
+
+    When KERYX_LEDGER_VERIFY_CHAIN is on, each recent row is confirmed against Arc and the
+    response carries on-chain amounts + a reconciliation summary ("don't trust our DB").
+    """
+    recent = ledger.recent(limit)
+    if _chain_reader is None:
+        return {"metrics": ledger.metrics(), "recent": recent, "chain_verified": False}
+    annotated = annotate_recent(_chain_reader, recent)
+    return {
+        "metrics": ledger.metrics(),
+        "recent": annotated["entries"],
+        "chain_verified": True,
+        "verification": {
+            "verified_count": annotated["verified_count"],
+            "reconciled_usdc": annotated["reconciled_usdc"],
+            "source": annotated["source"],
+        },
+    }

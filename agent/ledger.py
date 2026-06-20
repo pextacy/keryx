@@ -14,8 +14,28 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from decimal import Decimal
+from typing import Protocol, runtime_checkable
 
 from shared.types import CitationRecord
+
+
+@runtime_checkable
+class LedgerStore(Protocol):
+    """The ledger surface main.py depends on — satisfied by ``Ledger`` and ``PgLedger``."""
+
+    def record(
+        self,
+        *,
+        query_hash: str,
+        agent_wallet: str,
+        citations: list[CitationRecord],
+        author_wallets: dict[str, str | None],
+        external: bool,
+    ) -> None: ...
+
+    def metrics(self) -> dict[str, object]: ...
+
+    def recent(self, limit: int = ...) -> list[dict[str, object]]: ...
 
 
 @dataclass(frozen=True)

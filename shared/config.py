@@ -44,8 +44,45 @@ class Settings(BaseSettings):
     # --- Off-chain store (Neon — index/registry/cache only; chain is canonical) ---
     database_url: str = Field(default="", description="Neon Postgres connection string")
 
-    # --- Source ingest ---
+    # --- Chain-backed ledger verification (opt-in; default off = no RPC reads in CI) ---
+    ledger_verify_chain: bool = Field(
+        default=False, description="Annotate GET /ledger with on-chain verification via RPC"
+    )
+    chain_rpc_timeout: float = Field(default=8.0, gt=0)
+    chain_max_retries: int = Field(default=2, ge=0)
+
+    # --- ERC-8004 agent identity + reputation (Arc Testnet registries) ---
+    # Verified addresses from docs.arc.io ERC-8004 quickstart (testnet.arcscan.app).
+    erc8004_identity_registry: str = Field(default="0x8004A818BFB912233c491871b3d84c89A494BD9e")
+    erc8004_reputation_registry: str = Field(default="0x8004B663056A597Dffe9eCcC1965A193B7388713")
+    erc8004_validation_registry: str = Field(default="0x8004Cb1BF31DAf7788923b405b754f57acEB4272")
+    agent_metadata_uri: str = Field(
+        default="", description="ERC-8004 agent metadata URI (ipfs://...) for register()"
+    )
+    erc8004_enabled: bool = Field(
+        default=False, description="Enable ERC-8004 identity/reputation endpoints (uses RPC)"
+    )
+
+    # --- ERC-8183 AgenticCommerce (job escrow on Arc Testnet) ---
+    erc8183_enabled: bool = Field(
+        default=False, description="Enable ERC-8183 job-escrow endpoints (uses RPC)"
+    )
+    erc8183_contract: str = Field(
+        default="0x0747EEf0706327138c69792bF28Cd525089e4583",
+        description="AgenticCommerce reference implementation (docs.arc.io)",
+    )
+
+    # --- Circle Developer-Controlled Wallets (W3S) ---
+    circle_api_key: str = Field(default="", description="Circle W3S API key (enables wallet ops)")
+    circle_api_base: str = Field(default="https://api.circle.com")
+
+    # --- Source ingest (RSSHub) ---
     rsshub_base_url: str = Field(default="http://localhost:1200")
+    rsshub_routes: str = Field(
+        default="", description="Comma-separated RSSHub routes to ingest (empty = offline seed)"
+    )
+    rsshub_timeout: float = Field(default=20.0, gt=0)
+    rsshub_max_retries: int = Field(default=2, ge=0)
 
     # --- LLM (grounding judge + answer synthesis) ---
     # Real Claude path activates when anthropic_api_key is set; offline heuristics otherwise.
