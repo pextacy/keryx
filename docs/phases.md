@@ -105,7 +105,8 @@ Both workstreams reach a working v1 in parallel: the rail does the full x402→G
 - ✅ **Registry:** RSSHub DataItem ingest + author→wallet map + seeded offline corpus.
 - ✅ **`/cite` seller (CC-A):** `rail/m0_spike/seller.ts` does the full x402→Gateway dance (verified 402; per-request payTo).
 - ✅ **Production LLM moat wired:** `AnthropicJudge` (per-claim `supported|partial|unsupported` via Claude structured outputs, `claude-opus-4-8`) + `AnthropicAnswerer` (Claude answer synthesis) auto-activate when `KERYX_ANTHROPIC_API_KEY` is set, and degrade to the deterministic offline heuristics (CI/demo default) on any API error. `/config` reports which path is live.
-- ⏳ Live RSSHub fetch + Neon persistence + pgvector similarity deferred (pluggable interfaces in place; dense-embedding similarity is the remaining swap).
+- ✅ **Dense-embedding similarity wired:** `VoyageEmbedder` (Voyage — Anthropic's recommended embeddings provider) powers the similarity signal when `KERYX_VOYAGE_API_KEY` is set, behind the same `Embedder` protocol (dense vector exposed index-keyed, so `cosine`/scorer/retrieval are unchanged). One shared instance feeds both scoring and retrieval; resilient like `AnthropicJudge` — any API failure degrades the whole embedder to the offline BagOfWords (never mixing spaces). `/config` reports which path is live. 8 tests (fake transport, no network).
+- ⏳ Live RSSHub fetch + Neon persistence + pgvector ANN store deferred (pluggable interfaces in place; the dense embedder above is the vector source a pgvector index would persist/serve).
 
 ---
 

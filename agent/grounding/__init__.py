@@ -8,7 +8,13 @@ share one interface.
 
 from __future__ import annotations
 
-from agent.grounding.embeddings import BagOfWordsEmbedder, Embedder, cosine, similarity
+from agent.grounding.embeddings import (
+    BagOfWordsEmbedder,
+    Embedder,
+    VoyageEmbedder,
+    cosine,
+    similarity,
+)
 from agent.grounding.judge import AnthropicJudge, HeuristicJudge, Judge, JudgeResult, Verdict
 from agent.grounding.scorer import GroundingResult, GroundingScorer
 
@@ -22,6 +28,7 @@ __all__ = [
     "Judge",
     "JudgeResult",
     "Verdict",
+    "VoyageEmbedder",
     "cosine",
     "similarity",
 ]

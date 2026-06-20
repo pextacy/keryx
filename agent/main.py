@@ -10,6 +10,8 @@ startup so /ask works out of the box (set KERYX_AGENT_PRIVATE_KEY for a stable i
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
 
@@ -18,7 +20,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from agent.attestation import AttestationSigner, verify_attestation
-from agent.factory import build_answerer, build_scorer
+from agent.factory import build_answerer, build_embedder, build_scorer
+from agent.grounding.embeddings import VoyageEmbedder
 from agent.ledger import Ledger
 from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
@@ -26,10 +29,20 @@ from registry.fixtures import seeded_registry
 from shared.config import settings
 from shared.rail import MockRail, Rail
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    yield
+    # Release the long-lived pooled Voyage client on shutdown (idempotent, no-op offline).
+    if isinstance(_embedder, VoyageEmbedder):
+        _embedder.close()
+
+
 app = FastAPI(
     title="Keryx Agent",
     version="0.1.0",
     summary="Research agent + grounding verifier + attestation (CC-B)",
+    lifespan=lifespan,
 )
 
 # Phase 2: mock rail + offline seeded registry. Phase 3 swaps in the real settle().
@@ -38,14 +51,30 @@ registry = seeded_registry()
 _agent_key = settings.agent_private_key or Account.create().key.hex()
 signer = AttestationSigner(_agent_key)
 # Real Claude judge + answerer when KERYX_ANTHROPIC_API_KEY is set; heuristics otherwise.
+# Dense Voyage embedder when KERYX_VOYAGE_API_KEY is set; offline BagOfWords otherwise.
+# One embedder instance feeds both scoring and retrieval so they share an embedding space.
+_embedder = build_embedder(settings)
 pipeline = AskPipeline(
     store=registry,
     rail=rail,
     signer=signer,
-    scorer=build_scorer(settings),
+    scorer=build_scorer(settings, embedder=_embedder),
     answerer=build_answerer(settings),
+    embedder=_embedder,
 )
 ledger = Ledger()
+
+
+def _embedder_status() -> dict[str, Any]:
+    """Live effective similarity path — dense only when keyed AND not degraded."""
+    dense = isinstance(_embedder, VoyageEmbedder) and not _embedder.is_degraded
+    degraded = isinstance(_embedder, VoyageEmbedder) and _embedder.is_degraded
+    return {
+        "embedder": "VoyageEmbedder" if dense else "BagOfWordsEmbedder",
+        "embedding_model": settings.embedding_model if dense else None,
+        "embedder_degraded": degraded,
+        "embedder_stats": _embedder.stats() if isinstance(_embedder, VoyageEmbedder) else None,
+    }
 
 
 class AskRequest(BaseModel):
@@ -57,11 +86,14 @@ class AskRequest(BaseModel):
 
 @app.get("/healthz")
 def healthz() -> dict[str, Any]:
+    status = _embedder_status()
     return {
         "status": "ok",
         "service": "agent",
         "rail": type(rail).__name__,
         "llm": llm_enabled(settings),
+        "embedder": status["embedder"],
+        "embedder_degraded": status["embedder_degraded"],
     }
 
 
@@ -79,6 +111,8 @@ def config() -> dict[str, Any]:
         "answerer": type(pipeline.answerer).__name__,
         "judge_model": settings.judge_model if enabled else None,
         "answer_model": settings.answer_model_resolved if enabled else None,
+        # Which similarity path is live — dense Voyage when keyed AND healthy, else BagOfWords.
+        **_embedder_status(),
     }
 
 

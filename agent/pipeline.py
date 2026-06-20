@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from agent.answerer import Answerer, ExtractiveAnswerer
 from agent.attestation import AttestationSigner
+from agent.grounding.embeddings import Embedder
 from agent.grounding.scorer import GroundingResult, GroundingScorer
 from agent.retrieval import retrieve
 from registry.store import SourceStore
@@ -65,6 +66,7 @@ class AskPipeline:
         signer: AttestationSigner,
         scorer: GroundingScorer | None = None,
         answerer: Answerer | None = None,
+        embedder: Embedder | None = None,
         k: int = 5,
     ) -> None:
         self.store = store
@@ -72,10 +74,13 @@ class AskPipeline:
         self.signer = signer
         self.scorer = scorer or GroundingScorer()
         self.answerer = answerer or ExtractiveAnswerer()
+        # Same embedder as the scorer so retrieval and grounding share one embedding space
+        # (and one cache). None -> retrieval uses the BagOfWords default, like the scorer.
+        self.embedder = embedder
         self.k = k
 
     def ask(self, query: str, session: Session) -> AskResult:
-        candidates = retrieve(query, self.store, k=self.k)
+        candidates = retrieve(query, self.store, k=self.k, embedder=self.embedder)
         answer = self.answerer.answer(query, candidates)
 
         by_id = {s.source_id: s for s in candidates}

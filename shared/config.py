@@ -62,6 +62,22 @@ class Settings(BaseSettings):
     def answer_model_resolved(self) -> str:
         return self.answer_model or self.judge_model
 
+    # --- Embeddings (grounding similarity signal) ---
+    # Dense path activates when voyage_api_key is set; offline BagOfWords TF-cosine otherwise.
+    # Voyage is Anthropic's recommended embeddings provider (Anthropic ships no embeddings API).
+    voyage_api_key: str = Field(default="")
+    embedding_model: str = Field(default="voyage-3.5")
+    # Client knobs — all default to inert/offline-safe values (no value forces network use).
+    embedding_connect_timeout: float = Field(default=3.0, gt=0)
+    embedding_read_timeout: float = Field(default=10.0, gt=0)
+    embedding_max_retries: int = Field(default=2, ge=0)
+    embedding_backoff_base: float = Field(default=0.2, ge=0)
+    embedding_backoff_cap: float = Field(default=2.0, ge=0)
+    embedding_batch_size: int = Field(default=128, ge=1, le=128)
+    embedding_cache_size: int = Field(default=512, ge=1)
+    embedding_max_input_chars: int = Field(default=32000, ge=1)
+    embedding_dimensions: int | None = Field(default=None)
+
     # --- Grounding score weighting (similarity vs judge) ---
     similarity_weight: float = Field(default=0.4, ge=0.0, le=1.0)
     judge_weight: float = Field(default=0.6, ge=0.0, le=1.0)
