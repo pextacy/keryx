@@ -10,6 +10,7 @@ startup so /ask works out of the box (set KERYX_AGENT_PRIVATE_KEY for a stable i
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -17,7 +18,7 @@ from typing import Any
 
 from eth_account import Account
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agent.attestation import AttestationSigner, verify_attestation
 from agent.factory import (
@@ -37,6 +38,8 @@ from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
 from shared.config import settings
 from shared.rail import HttpRail, MockRail, Rail
+from shared.splits import Contributor, split_payout
+from shared.types import CitationIntent, SettlementStatus
 
 
 def build_rail() -> Rail:
@@ -319,6 +322,64 @@ def circle_transaction(tx_id: str) -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — never 500 on a flaky upstream
         return {"enabled": True, "tx_id": tx_id, "error": type(exc).__name__}
     return {"enabled": True, "tx_id": tx_id, "transaction": tx}
+
+
+_HEX_WALLET = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+class PayoutRecipient(BaseModel):
+    wallet: str = Field(description="0x-prefixed Arc/EVM wallet")
+    share: Decimal = Field(gt=0, description="Relative weight from the attribution graph")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class PayoutRequest(BaseModel):
+    amount: Decimal = Field(gt=0, description="Total USDC to split across contributors")
+    contributors: list[PayoutRecipient] = Field(min_length=1)
+
+
+@app.post("/payout")
+def payout(req: PayoutRequest) -> dict[str, Any]:
+    """Split one payment across all credited contributors and settle each share (Prior Art 04).
+
+    The attribution graph (writer/editor/photographer weights) in -> proportional on-chain
+    splits out, summing exactly to the total with no dust. Settles through the active rail.
+    """
+    pairs = split_payout(req.amount, [Contributor(c.wallet, c.share) for c in req.contributors])
+    intents = [
+        CitationIntent(source_id=f"payout:{i}", author_wallet=c.wallet, amount=amt)
+        for i, (c, amt) in enumerate(pairs)
+        if amt > 0
+    ]
+    receipts = rail.settle(intents) if intents else []
+    rc_by_id = {r.source_id: r for r in receipts}
+    recipients: list[dict[str, Any]] = []
+    total_settled = Decimal(0)
+    for i, (c, amt) in enumerate(pairs):
+        rc = rc_by_id.get(f"payout:{i}")
+        settled = rc is not None and rc.status is SettlementStatus.SETTLED and bool(rc.tx_hash)
+        if settled and rc is not None:
+            total_settled += amt
+        recipients.append(
+            {
+                "wallet": c.wallet,
+                "share": str(c.weight),
+                "amount": str(amt),
+                "settled": settled,
+                "tx_hash": rc.tx_hash if (settled and rc is not None) else None,
+            }
+        )
+    return {
+        "amount": str(req.amount),
+        "recipients": recipients,
+        "total_settled": str(total_settled),
+    }
 
 
 @app.get("/metrics")
