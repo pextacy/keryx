@@ -25,14 +25,21 @@ QUERIES = [
 ]
 
 
-def run(url: str, n: int, external: bool) -> int:
+def run(url: str, n: int, external: bool, agents: int) -> int:
     settled = 0
     cites = 0
+    agents = max(1, min(agents, n))
     with httpx.Client(timeout=120) as client:
         for i in range(n):
             q = QUERIES[i % len(QUERIES)]
+            # Cycle through `agents` distinct payer wallets so /metrics reflects real
+            # distinct-session volume rather than a single agent.
+            wallet = f"0x{(i % agents) + 1:040x}"
             try:
-                r = client.post(f"{url}/ask", json={"query": q, "external": external})
+                r = client.post(
+                    f"{url}/ask",
+                    json={"query": q, "external": external, "agent_wallet": wallet},
+                )
                 r.raise_for_status()
                 data = r.json()
             except Exception as exc:  # noqa: BLE001 - report and continue the run
@@ -55,8 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--url", default="http://127.0.0.1:8000")
     p.add_argument("--n", type=int, default=20)
     p.add_argument("--external", action="store_true", help="label volume as external")
+    p.add_argument(
+        "--agents", type=int, default=3, help="distinct payer wallets to spread volume across"
+    )
     args = p.parse_args(argv)
-    return run(args.url, args.n, args.external)
+    return run(args.url, args.n, args.external, args.agents)
 
 
 if __name__ == "__main__":
