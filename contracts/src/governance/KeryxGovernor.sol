@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {IVotes} from "../interfaces/IVotes.sol";
 import {Timelock} from "../access/Timelock.sol";
+import {AccessController} from "../access/AccessController.sol";
 
 /// @title KeryxGovernor
 /// @notice Proposal lifecycle (propose/vote/queue/execute) over IVotes power, executing through the Timelock.
@@ -111,16 +112,20 @@ contract KeryxGovernor {
         emit ProposalCreated(id, msg.sender, target, value, data, description);
     }
 
-    /// @notice Casts a vote on an active proposal weighted by the caller's current voting power.
+    /// @notice Casts a vote on an active proposal weighted by the caller's voting power
+    ///         snapshotted at the proposal's start block.
+    /// @dev Weight is read via {IVotes-getPastVotes} at `startBlock`, not live, so tokens
+    ///      cannot be moved between wallets mid-vote to cast the same stake more than once.
+    ///      Voting opens strictly after `startBlock` to keep the snapshot block in the past.
     /// @param support 0 = against, 1 = for, 2 = abstain.
     function castVote(uint256 id, uint8 support) external {
         Proposal storage p = _proposals[id];
         if (p.proposer == address(0)) revert NotActive();
-        if (block.number < p.startBlock || block.number > p.endBlock) revert NotActive();
+        if (block.number <= p.startBlock || block.number > p.endBlock) revert NotActive();
         if (p.cancelled) revert NotActive();
         if (hasVoted[id][msg.sender]) revert AlreadyVoted();
 
-        uint256 weight = votes.getVotes(msg.sender);
+        uint256 weight = votes.getPastVotes(msg.sender, p.startBlock);
 
         hasVoted[id][msg.sender] = true;
 
@@ -174,16 +179,25 @@ contract KeryxGovernor {
         emit ProposalExecuted(id);
     }
 
-    /// @notice Cancels a proposal that has not yet executed; callable by the original proposer.
+    /// @notice Cancels a proposal that has not yet executed.
+    /// @dev Callable by the original proposer, or by a holder of the GUARDIAN_ROLE
+    ///      (the emergency-veto path) so a malicious proposal can be stopped before
+    ///      execution. The guardian authority is read from the timelock's ACL.
     function cancel(uint256 id) external {
         Proposal storage p = _proposals[id];
         if (p.proposer == address(0)) revert NotActive();
         if (p.executed) revert AlreadyQueuedOrExecuted();
-        if (msg.sender != p.proposer) revert NotActive();
+        if (msg.sender != p.proposer && !_isGuardian(msg.sender)) revert NotActive();
 
         p.cancelled = true;
 
         emit ProposalCancelled(id);
+    }
+
+    /// @dev True if `account` holds the GUARDIAN_ROLE on the timelock's access controller.
+    function _isGuardian(address account) internal view returns (bool) {
+        AccessController acl = timelock.acl();
+        return acl.hasRole(acl.GUARDIAN_ROLE(), account);
     }
 
     /// @notice Returns the current lifecycle state of a proposal.
@@ -202,7 +216,8 @@ contract KeryxGovernor {
         if (p.cancelled) return ProposalState.Cancelled;
         if (p.executed) return ProposalState.Executed;
         if (p.queued) return ProposalState.Queued;
-        if (block.number < p.startBlock) return ProposalState.Pending;
+        // Voting opens strictly after startBlock so the snapshot block is in the past.
+        if (block.number <= p.startBlock) return ProposalState.Pending;
         if (block.number <= p.endBlock) return ProposalState.Active;
 
         uint256 participating = p.forVotes + p.abstainVotes;

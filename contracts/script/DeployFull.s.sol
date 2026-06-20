@@ -362,10 +362,35 @@ contract DeployFull is Script {
         acl.bootstrap(acl.GOVERNOR_ROLE(), address(timelock)); // on-chain governance executor
         acl.bootstrap(acl.GUARDIAN_ROLE(), deployer);
         acl.bootstrap(acl.GUARDIAN_ROLE(), address(guardian));
+        acl.bootstrap(acl.GUARDIAN_ROLE(), address(veto)); // emergency veto -> governor.cancel
         acl.bootstrap(acl.ORACLE_ROLE(), deployer); // price + grounding reporter
         acl.bootstrap(acl.SETTLER_ROLE(), address(router)); // batch settlement router
         acl.bootstrap(acl.SLASHER_ROLE(), address(slasher)); // slasher -> vault.slash
         acl.bootstrap(acl.SLASHER_ROLE(), address(resolver)); // resolver -> slasher
+
+        // --- Cross-contract operational authorizations ---
+        // Without these the router/treasury/emissions/buyback/dispute paths revert at
+        // runtime even though every contract is deployed; grant them so the suite runs.
+
+        // Router + Treasury register their USDC outflow against the circuit breaker.
+        // (setAuthorized is guardian-gated; deployer holds GUARDIAN_ROLE from above.)
+        breaker.setAuthorized(address(router), true);
+        breaker.setAuthorized(address(treasury), true);
+        // The router skims the protocol fee through the FeeManager (governor-gated).
+        feeManager.setAuthorized(address(router), true);
+
+        // Emission schedule mints KRX; buyback engine burns KRX and pulls treasury USDC.
+        acl.bootstrap(acl.GOVERNOR_ROLE(), address(emissions));
+        acl.bootstrap(acl.GOVERNOR_ROLE(), address(buyback));
+
+        // Dispute resolution: the panel and appeal court drive DisputeManager.resolve/
+        // openAppeal (arbitrator-gated), and the deployer acts as the human arbitrator/
+        // chief arbitrator that advances and finalizes the lifecycle on a fresh chain.
+        bytes32 arbitratorRole = disputes.ARBITRATOR_ROLE();
+        acl.bootstrap(arbitratorRole, address(panel));
+        acl.bootstrap(arbitratorRole, address(appeals));
+        acl.bootstrap(arbitratorRole, deployer);
+        acl.bootstrap(appeals.CHIEF_ARBITRATOR_ROLE(), deployer);
     }
 
     function _log() internal view {
