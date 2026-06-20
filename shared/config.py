@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     circle_api_key: str = Field(default="", description="Circle W3S API key (enables wallet ops)")
     circle_api_base: str = Field(default="https://api.circle.com")
 
+    # --- API security (opt-in; default off keeps the open demo + CI working) ---
+    # When api_key is set, the settlement/write endpoints require a matching X-API-Key header.
+    # rate_limit_per_minute caps requests per client IP across all endpoints (0 disables).
+    api_key: str = Field(default="", description="Require X-API-Key on settlement endpoints")
+    rate_limit_per_minute: int = Field(default=0, ge=0, description="Per-IP request cap (0 = off)")
+
     # --- Source ingest (RSSHub) ---
     rsshub_base_url: str = Field(default="http://localhost:1200")
     rsshub_routes: str = Field(
