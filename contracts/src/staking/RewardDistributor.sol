@@ -57,7 +57,10 @@ contract RewardDistributor is ReentrancyGuard {
         rewardToken = rewardToken_;
         stakeView = stakeView_;
         acl = acl_;
-        lastUpdate = block.timestamp;
+        // lastUpdate stays 0 until the first reward period opens. Seeding it to
+        // block.timestamp here would underflow `_rewardPerToken` (elapsed =
+        // lastTimeRewardApplicable(0, no period yet) - lastUpdate) the moment anyone
+        // stakes before the first notifyReward — the normal stake-then-fund order.
     }
 
     /// @dev Reverts unless the caller holds the GOVERNOR_ROLE.

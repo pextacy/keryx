@@ -41,6 +41,12 @@ class Settings(BaseSettings):
         description="Circle Gateway batching contract (x402 verifyingContract)",
     )
 
+    # --- Rail selection (mock now; http bridges to the TS payer at M2, no code edit) ---
+    rail: str = Field(default="mock", description="Settlement rail: 'mock' or 'http'")
+    payer_url: str = Field(
+        default="http://localhost:3403/settle", description="TS payer bridge for the http rail"
+    )
+
     # --- Off-chain store (Neon — index/registry/cache only; chain is canonical) ---
     database_url: str = Field(default="", description="Neon Postgres connection string")
 

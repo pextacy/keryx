@@ -36,7 +36,17 @@ from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
 from shared.config import settings
-from shared.rail import MockRail, Rail
+from shared.rail import HttpRail, MockRail, Rail
+
+
+def build_rail() -> Rail:
+    """Select the settlement rail from config — MockRail (default) or the real HttpRail.
+
+    The M1->M2 swap is now configuration (``KERYX_RAIL=http``), not a code edit.
+    """
+    if settings.rail.lower() == "http":
+        return HttpRail(settings.payer_url)
+    return MockRail()
 
 
 @asynccontextmanager
@@ -62,9 +72,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Phase 2: mock rail + offline seeded registry. Phase 3 swaps in the real settle().
+# Rail comes from config: MockRail by default, HttpRail when KERYX_RAIL=http (Phase 3 / M2).
 # Store + ledger are Neon-backed when KERYX_DATABASE_URL is set, else in-memory (default).
-rail: Rail = MockRail()
+rail: Rail = build_rail()
 registry = build_store(settings)
 _agent_key = settings.agent_private_key or Account.create().key.hex()
 signer = AttestationSigner(_agent_key)
@@ -108,6 +118,11 @@ class AskRequest(BaseModel):
     budget: Decimal | None = Field(default=None, description="USDC budget for this query")
     per_source_cap: Decimal | None = None
     external: bool = Field(default=False, description="True if from a non-team agent")
+    agent_wallet: str | None = Field(
+        default=None,
+        description="Paying agent wallet; defaults to this agent. Distinct wallets are "
+        "counted as distinct sessions in /metrics.",
+    )
 
 
 @app.get("/healthz")
@@ -145,7 +160,7 @@ def config() -> dict[str, Any]:
 @app.post("/ask")
 def ask(req: AskRequest) -> dict[str, Any]:
     session = Session(
-        agent_wallet=signer.address,
+        agent_wallet=req.agent_wallet or signer.address,
         budget_total=req.budget if req.budget is not None else Decimal("1"),
         per_source_cap=req.per_source_cap,
     )

@@ -44,6 +44,8 @@ contract VoteEscrow is IVotes, ReentrancyGuard {
     error LockNotExpired();
     /// @notice Thrown when modifying a lock whose end has already passed.
     error LockExpired();
+    /// @notice Thrown when opening a new lock while an unexpired one is still active.
+    error LockStillActive();
     /// @notice Thrown when a requested duration is zero or exceeds MAX_LOCK.
     error InvalidDuration();
     /// @notice Thrown when an amount argument is zero.
@@ -55,7 +57,9 @@ contract VoteEscrow is IVotes, ReentrancyGuard {
     }
 
     /// @notice Opens a new lock by pulling `amount` KRX locked for `duration`.
-    /// @dev Reverts if the caller already holds an unexpired lock. Effects are
+    /// @dev Reverts if the caller already holds an unexpired lock. If a prior lock
+    ///      has expired but was never withdrawn, its leftover principal is folded
+    ///      into the new lock rather than being silently overwritten. Effects are
     ///      written before the external token pull (checks-effects-interactions).
     /// @param amount The amount of KRX to lock; must be non-zero.
     /// @param duration The lock duration in seconds; must be in (0, MAX_LOCK].
@@ -64,10 +68,11 @@ contract VoteEscrow is IVotes, ReentrancyGuard {
         if (duration == 0 || duration > MAX_LOCK) revert InvalidDuration();
 
         Lock storage lock = _locks[msg.sender];
-        if (lock.amount != 0 && lock.end > block.timestamp) revert LockExpired();
+        if (lock.amount != 0 && lock.end > block.timestamp) revert LockStillActive();
 
         uint64 end = uint64(block.timestamp + duration);
-        lock.amount = amount;
+        // Fold any un-withdrawn (expired) principal in so it is never orphaned.
+        lock.amount += amount;
         lock.end = end;
 
         emit LockCreated(msg.sender, amount, end);
