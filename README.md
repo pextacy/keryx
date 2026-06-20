@@ -38,6 +38,31 @@ Shows the whole system working (answer → grounded citations → settlement →
 attestation → traction metrics) against the mock rail — no testnet funds needed. For
 real on-chain settlement, see "The rail" below.
 
+## Nanopayment capabilities
+
+Beyond the citation toll, Keryx exposes the full set of sub-cent primitives the Lepton
+round is about — each settles in test-USDC through the rail, with **exact, dust-free**
+splits (every payout sums to the input down to the micro-USDC, never overpaying):
+
+| Primitive | Endpoint | What it does |
+| --- | --- | --- |
+| Royalty splits | `POST /payout` | pay every credited contributor in proportion (attribution → payout) |
+| Reputation bonds | `POST /bond`, `…/resolve` | collateral that slashes to the claimant on default; ±100 reputation |
+| Streaming | `POST /stream`, `…/tick` | pay-per-second flow, billed live with fractional carry |
+| User royalties | `POST /royalties` | a listener's budget pays only who they played, with play-gating |
+| Quadratic funding | `POST /qf` | match a pool by breadth `(Σ√c)²` — many small backers beat one big |
+| Traction | `GET /traction` | settled volume rolled up across every primitive |
+| On-chain (opt-in) | `GET /identity`, `/job/{id}`, `/validation/{h}` | ERC-8004 identity/reputation/validation + ERC-8183 job escrow |
+
+```bash
+make capabilities-demo    # boots the agent, drives every primitive, prints rolled-up /traction
+```
+
+Full reference with copy-paste `curl` for each: [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
+A live UI for all of them is the web **`/capabilities`** dashboard:
+
+![Capabilities dashboard](web/capabilities-dashboard.png)
+
 ## Quickstart (Python: agent + grounding moat)
 
 ```bash
@@ -57,7 +82,9 @@ curl -s localhost:8000/metrics | jq
 python -m agent.fleet --n 20
 ```
 
-Agent endpoints: `POST /ask`, `GET /ledger`, `GET /metrics`, `GET /config`, `GET /healthz`.
+Agent endpoints: `POST /ask`, `GET /ledger`, `GET /metrics`, `GET /traction`, `GET /config`,
+`GET /healthz`, plus the nanopayment primitives above (`/payout`, `/bond`, `/stream`,
+`/royalties`, `/qf`) and opt-in on-chain reads — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
 
 ## Quickstart (web surface)
 

@@ -10,6 +10,7 @@ startup so /ask works out of the box (set KERYX_AGENT_PRIVATE_KEY for a stable i
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -17,17 +18,32 @@ from typing import Any
 
 from eth_account import Account
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agent.attestation import AttestationSigner, verify_attestation
-from agent.factory import build_answerer, build_embedder, build_scorer
+from agent.factory import (
+    build_answerer,
+    build_chain_reader,
+    build_circle_wallets,
+    build_embedder,
+    build_erc8004,
+    build_erc8183,
+    build_ledger,
+    build_scorer,
+)
 from agent.grounding.embeddings import VoyageEmbedder
-from agent.ledger import Ledger
+from agent.ledger_verify import annotate_recent
 from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
-from registry.fixtures import seeded_registry
+from registry.factory import build_store
+from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
+from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
+from shared.splits import Contributor, split_payout
+from shared.streaming import StreamBook, StreamClosed
+from shared.traction import TractionBook
+from shared.types import CitationIntent, SettlementStatus
 
 
 def build_rail() -> Rail:
@@ -43,9 +59,17 @@ def build_rail() -> Rail:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
-    # Release the long-lived pooled Voyage client on shutdown (idempotent, no-op offline).
+    # Release long-lived pooled clients on shutdown (idempotent, no-ops when offline).
     if isinstance(_embedder, VoyageEmbedder):
         _embedder.close()
+    if _chain_reader is not None:
+        _chain_reader.close()
+    if _erc8004 is not None:
+        _erc8004.close()
+    if _erc8183 is not None:
+        _erc8183.close()
+    if _circle is not None:
+        _circle.close()
 
 
 app = FastAPI(
@@ -56,8 +80,9 @@ app = FastAPI(
 )
 
 # Rail comes from config: MockRail by default, HttpRail when KERYX_RAIL=http (Phase 3 / M2).
+# Store + ledger are Neon-backed when KERYX_DATABASE_URL is set, else in-memory (default).
 rail: Rail = build_rail()
-registry = seeded_registry()
+registry = build_store(settings)
 _agent_key = settings.agent_private_key or Account.create().key.hex()
 signer = AttestationSigner(_agent_key)
 # Real Claude judge + answerer when KERYX_ANTHROPIC_API_KEY is set; heuristics otherwise.
@@ -72,7 +97,34 @@ pipeline = AskPipeline(
     answerer=build_answerer(settings),
     embedder=_embedder,
 )
-ledger = Ledger()
+ledger = build_ledger(settings)
+# Chain reader for verifiable /ledger; None (default) -> mirror response, no RPC reads.
+_chain_reader = build_chain_reader(settings)
+# ERC-8004 identity/reputation client; None (default) -> endpoints report disabled, no RPC.
+_erc8004 = build_erc8004(settings)
+# ERC-8183 job-escrow client; None (default) -> /job reports disabled, no RPC.
+_erc8183 = build_erc8183(settings)
+# Circle W3S wallets client; None (default) -> /circle endpoints report disabled, no network.
+_circle = build_circle_wallets(settings)
+# Reputation bonds (PA 08): in-memory book; a slash settles to the claimant via the rail.
+bonds = BondBook()
+# Streaming payments (RFB 4): each tick settles the newly-accrued micro-USDC via the rail.
+streams = StreamBook()
+# Traction: rolls up settled volume across every primitive (the 30%-weighted judging axis).
+traction = TractionBook()
+
+
+def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
+    """Settle one amount to a wallet through the active rail; record traction. None on fail."""
+    if amount <= 0:
+        return None
+    intent = CitationIntent(source_id=source_id, author_wallet=wallet, amount=amount)
+    receipts = rail.settle([intent])
+    rc = receipts[0] if receipts else None
+    if rc is not None and rc.status is SettlementStatus.SETTLED:
+        traction.record(kind, amount)
+        return rc.tx_hash
+    return None
 
 
 def _embedder_status() -> dict[str, Any]:
@@ -175,6 +227,487 @@ def ask(req: AskRequest) -> dict[str, Any]:
     }
 
 
+@app.get("/identity")
+def identity() -> dict[str, Any]:
+    """The agent's ERC-8004 on-chain identity (opt-in; KERYX_ERC8004_ENABLED).
+
+    Ties the attestation pubkey to a registered agent. Disabled by default (no RPC reads);
+    degrades to ``registered: false`` if the agent has not registered or RPC is unreachable.
+    """
+    if _erc8004 is None:
+        return {"enabled": False, "agent_address": signer.address}
+    try:
+        ident = _erc8004.identity(signer.address)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky RPC
+        return {"enabled": True, "agent_address": signer.address, "error": type(exc).__name__}
+    if ident is None:
+        return {"enabled": True, "agent_address": signer.address, "registered": False}
+    return {
+        "enabled": True,
+        "agent_address": signer.address,
+        "registered": True,
+        "agent_id": ident.agent_id,
+        "owner": ident.owner,
+        "metadata_uri": ident.metadata_uri,
+    }
+
+
+class ReputationRequest(BaseModel):
+    agent_id: int = Field(ge=0, description="ERC-8004 agent id of the author/agent being rated")
+    g: float = Field(ge=0.0, le=1.0, description="Grounding score -> reputation (round(100*g))")
+    tag: str = Field(default="keryx_grounded_citation")
+
+
+@app.post("/reputation")
+def reputation(req: ReputationRequest) -> dict[str, Any]:
+    """Record grounding-derived reputation on-chain (opt-in; requires a signing key).
+
+    Keryx rates as an external verifier (ERC-8004 forbids self-rating). Returns the tx hash.
+    """
+    if _erc8004 is None:
+        return {"enabled": False, "recorded": False, "reason": "erc8004 disabled"}
+    if not _erc8004.can_write:
+        return {"enabled": True, "recorded": False, "reason": "no agent signing key configured"}
+    tx_hash = _erc8004.give_feedback(req.agent_id, g=req.g, tag=req.tag)
+    return {"enabled": True, "recorded": True, "agent_id": req.agent_id, "tx_hash": tx_hash}
+
+
+@app.get("/validation/{request_hash}")
+def validation(request_hash: str) -> dict[str, Any]:
+    """Read an ERC-8004 ValidationRegistry status (opt-in; KERYX_ERC8004_ENABLED).
+
+    Lets clients audit whether a verifier validated an agent's grounding claim on-chain
+    (100=passed / 0=failed). Disabled by default; a flaky RPC or malformed hash degrades to
+    an ``error`` field rather than a 500.
+    """
+    if _erc8004 is None:
+        return {"enabled": False}
+    try:
+        status = _erc8004.validation_status(request_hash)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky RPC or bad hash
+        return {"enabled": True, "request_hash": request_hash, "error": type(exc).__name__}
+    if status is None:
+        return {"enabled": True, "request_hash": request_hash, "found": False}
+    return {
+        "enabled": True,
+        "request_hash": request_hash,
+        "found": True,
+        "validator": status.validator,
+        "agent_id": status.agent_id,
+        "response": status.response,
+        "passed": status.passed,
+        "tag": status.tag,
+        "last_update": status.last_update,
+    }
+
+
+@app.get("/job/{job_id}")
+def job(job_id: int) -> dict[str, Any]:
+    """Read an ERC-8183 AgenticCommerce job's on-chain state (opt-in; KERYX_ERC8183_ENABLED).
+
+    A research/citation job with USDC escrow: status moves Open->Funded->Submitted->Completed
+    as the agent (provider) delivers. Disabled by default; a flaky RPC degrades to ``error``.
+    """
+    if _erc8183 is None:
+        return {"enabled": False}
+    try:
+        j = _erc8183.get_job(job_id)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky RPC
+        return {"enabled": True, "job_id": job_id, "error": type(exc).__name__}
+    if j is None:
+        return {"enabled": True, "job_id": job_id, "found": False}
+    return {
+        "enabled": True,
+        "job_id": j.id,
+        "found": True,
+        "client": j.client,
+        "provider": j.provider,
+        "evaluator": j.evaluator,
+        "description": j.description,
+        "budget_usdc": str(j.budget),
+        "expired_at": j.expired_at,
+        "status": j.status.name,
+        "hook": j.hook,
+    }
+
+
+@app.get("/circle/transaction/{tx_id}")
+def circle_transaction(tx_id: str) -> dict[str, Any]:
+    """Read a Circle W3S transaction's status (opt-in; KERYX_CIRCLE_API_KEY).
+
+    Lets the agent track a wallet-provisioned tx (e.g. ERC-8004 register / ERC-8183 fund)
+    submitted via Circle. Disabled by default; a flaky API degrades to an ``error`` field.
+    """
+    if _circle is None:
+        return {"enabled": False}
+    try:
+        tx = _circle.get_transaction(tx_id)
+    except Exception as exc:  # noqa: BLE001 — never 500 on a flaky upstream
+        return {"enabled": True, "tx_id": tx_id, "error": type(exc).__name__}
+    return {"enabled": True, "tx_id": tx_id, "transaction": tx}
+
+
+_HEX_WALLET = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+
+class PayoutRecipient(BaseModel):
+    wallet: str = Field(description="0x-prefixed Arc/EVM wallet")
+    share: Decimal = Field(gt=0, description="Relative weight from the attribution graph")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class PayoutRequest(BaseModel):
+    amount: Decimal = Field(gt=0, description="Total USDC to split across contributors")
+    contributors: list[PayoutRecipient] = Field(min_length=1)
+
+
+@app.post("/payout")
+def payout(req: PayoutRequest) -> dict[str, Any]:
+    """Split one payment across all credited contributors and settle each share (Prior Art 04).
+
+    The attribution graph (writer/editor/photographer weights) in -> proportional on-chain
+    splits out, summing exactly to the total with no dust. Settles through the active rail.
+    """
+    pairs = split_payout(req.amount, [Contributor(c.wallet, c.share) for c in req.contributors])
+    intents = [
+        CitationIntent(source_id=f"payout:{i}", author_wallet=c.wallet, amount=amt)
+        for i, (c, amt) in enumerate(pairs)
+        if amt > 0
+    ]
+    receipts = rail.settle(intents) if intents else []
+    rc_by_id = {r.source_id: r for r in receipts}
+    recipients: list[dict[str, Any]] = []
+    total_settled = Decimal(0)
+    for i, (c, amt) in enumerate(pairs):
+        rc = rc_by_id.get(f"payout:{i}")
+        settled = rc is not None and rc.status is SettlementStatus.SETTLED and bool(rc.tx_hash)
+        if settled and rc is not None:
+            total_settled += amt
+            traction.record("payout", amt)
+        recipients.append(
+            {
+                "wallet": c.wallet,
+                "share": str(c.weight),
+                "amount": str(amt),
+                "settled": settled,
+                "tx_hash": rc.tx_hash if (settled and rc is not None) else None,
+            }
+        )
+    return {
+        "amount": str(req.amount),
+        "recipients": recipients,
+        "total_settled": str(total_settled),
+    }
+
+
+class BondRequest(BaseModel):
+    provider: str = Field(description="0x wallet of the agent posting the bond")
+    claimant: str = Field(description="0x wallet paid if the provider is slashed")
+    amount: Decimal = Field(gt=0, description="USDC bond at risk")
+
+    @field_validator("provider", "claimant")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class ResolveRequest(BaseModel):
+    passed: bool = Field(description="True if the provider delivered (release), else slash")
+
+
+def _bond_view(b: Any) -> dict[str, Any]:
+    return {
+        "bond_id": b.id,
+        "provider": b.provider,
+        "claimant": b.claimant,
+        "amount": str(b.amount),
+        "status": b.status.value,
+        "reputation_delta": b.reputation_delta,
+    }
+
+
+# Far-future expiry for the on-chain escrow anchor (year 2100); the bond resolves long before.
+_ESCROW_EXPIRY = 4102444800
+
+
+def _escrow_anchor(bond: Any) -> dict[str, Any] | None:
+    """Best-effort on-chain ERC-8183 escrow backing a bond (opt-in; needs key + funds).
+
+    None when ERC-8183 is disabled or read-only (the offline bond is unchanged). Otherwise
+    submits a real createJob tx as proof-of-escrow; any failure degrades to an error field
+    rather than breaking the bond. The reference contract releases to the provider on
+    complete, so the slash-to-claimant transfer still goes through the rail.
+    """
+    if _erc8183 is None or not _erc8183.can_write:
+        return None
+    try:
+        tx_hash = _erc8183.create_job(
+            provider=bond.provider,
+            evaluator=bond.claimant,
+            expired_at=_ESCROW_EXPIRY,
+            description=f"keryx-bond:{bond.id}",
+        )
+        return {"tx_hash": tx_hash, "status": "submitted"}
+    except Exception as exc:  # noqa: BLE001 — escrow is best-effort; never break the bond
+        return {"error": type(exc).__name__}
+
+
+@app.post("/bond")
+def post_bond(req: BondRequest) -> dict[str, Any]:
+    """Post a USDC reputation bond standing behind a match (PA 08 / RFB 3).
+
+    When ERC-8183 is enabled with a signing key, the bond is also anchored in a real on-chain
+    job escrow (``escrow`` field); otherwise it is the in-memory bond settled via the rail.
+    """
+    bond = bonds.post(provider=req.provider, amount=req.amount, claimant=req.claimant)
+    view = _bond_view(bond)
+    anchor = _escrow_anchor(bond)
+    if anchor is not None:
+        view["escrow"] = anchor
+    return view
+
+
+@app.get("/bond/{bond_id}")
+def get_bond(bond_id: str) -> dict[str, Any]:
+    bond = bonds.get(bond_id)
+    if bond is None:
+        return {"found": False, "bond_id": bond_id}
+    return {"found": True, **_bond_view(bond)}
+
+
+@app.post("/bond/{bond_id}/resolve")
+def resolve_bond(bond_id: str, req: ResolveRequest) -> dict[str, Any]:
+    """Resolve a bond: release to the provider on a pass, or slash to the claimant on a fail.
+
+    A slash settles the bond amount to the wronged claimant through the active rail —
+    reputation as capital at risk, not a self-reported score.
+    """
+    try:
+        bond = bonds.resolve(bond_id, passed=req.passed)
+    except KeyError:
+        return {"found": False, "bond_id": bond_id}
+    except BondAlreadyResolved:
+        return {"error": "already_resolved", "bond_id": bond_id}
+
+    tx_hash: str | None = None
+    if bond.status is BondStatus.SLASHED:
+        intent = CitationIntent(
+            source_id=f"slash:{bond.id}", author_wallet=bond.claimant, amount=bond.amount
+        )
+        receipts = rail.settle([intent])
+        rc = receipts[0] if receipts else None
+        if rc is not None and rc.status is SettlementStatus.SETTLED:
+            tx_hash = rc.tx_hash
+            traction.record("bond", bond.amount)
+    return {**_bond_view(bond), "tx_hash": tx_hash}
+
+
+class StreamRequest(BaseModel):
+    payer: str = Field(description="0x wallet authorizing the flow")
+    payee: str = Field(description="0x wallet receiving the stream")
+    rate: Decimal = Field(gt=0, description="USDC per second")
+
+    @field_validator("payer", "payee")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class TickRequest(BaseModel):
+    seconds: Decimal = Field(gt=0, description="Duration of flow to bill")
+
+
+def _stream_view(s: Any) -> dict[str, Any]:
+    return {
+        "stream_id": s.id,
+        "payer": s.payer,
+        "payee": s.payee,
+        "rate": str(s.rate),
+        "status": s.status.value,
+        "total_settled": str(s.settled),
+    }
+
+
+@app.post("/stream")
+def open_stream(req: StreamRequest) -> dict[str, Any]:
+    """Open a per-second payment stream (RFB 4): approve a rate, bill by the second."""
+    s = streams.open(payer=req.payer, payee=req.payee, rate=req.rate)
+    return _stream_view(s)
+
+
+@app.get("/stream/{stream_id}")
+def get_stream(stream_id: str) -> dict[str, Any]:
+    s = streams.get(stream_id)
+    if s is None:
+        return {"found": False, "stream_id": stream_id}
+    return {"found": True, **_stream_view(s)}
+
+
+def _tick_response(stream_id: str, billed: Decimal) -> dict[str, Any]:
+    s = streams.get(stream_id)
+    assert s is not None
+    tx_hash = _settle_to(f"stream:{stream_id}:{s.settled}", s.payee, billed, kind="stream")
+    return {**_stream_view(s), "billed": str(billed), "tx_hash": tx_hash}
+
+
+@app.post("/stream/{stream_id}/tick")
+def tick_stream(stream_id: str, req: TickRequest) -> dict[str, Any]:
+    """Bill ``seconds`` of flow and settle the newly-accrued micro-USDC to the payee."""
+    try:
+        billed = streams.tick(stream_id, req.seconds)
+    except KeyError:
+        return {"found": False, "stream_id": stream_id}
+    except StreamClosed:
+        return {"error": "stream_closed", "stream_id": stream_id}
+    return _tick_response(stream_id, billed)
+
+
+@app.post("/stream/{stream_id}/pause")
+def pause_stream(stream_id: str) -> dict[str, Any]:
+    try:
+        s = streams.pause(stream_id)
+    except (KeyError, StreamClosed):
+        return {"found": False, "stream_id": stream_id}
+    return _stream_view(s)
+
+
+@app.post("/stream/{stream_id}/resume")
+def resume_stream(stream_id: str) -> dict[str, Any]:
+    try:
+        s = streams.resume(stream_id)
+    except (KeyError, StreamClosed):
+        return {"found": False, "stream_id": stream_id}
+    return _stream_view(s)
+
+
+@app.post("/stream/{stream_id}/close")
+def close_stream(stream_id: str) -> dict[str, Any]:
+    """Close the stream and settle any final billable micro-USDC."""
+    try:
+        _s, billed = streams.close(stream_id)
+    except KeyError:
+        return {"found": False, "stream_id": stream_id}
+    except StreamClosed:
+        return {"error": "already_closed", "stream_id": stream_id}
+    return _tick_response(stream_id, billed)
+
+
+class Play(BaseModel):
+    wallet: str = Field(description="0x wallet of the creator")
+    count: int = Field(ge=0, description="Real plays/citations in the window")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class RoyaltiesRequest(BaseModel):
+    budget: Decimal = Field(gt=0, description="The listener's budget for the window")
+    plays: list[Play] = Field(min_length=1)
+    min_count: int = Field(default=1, ge=1, description="Play-gate: fewer plays earn nothing")
+
+
+@app.post("/royalties")
+def royalties(req: RoyaltiesRequest) -> dict[str, Any]:
+    """User-centric royalties (PA 05): a listener's budget goes only to the creators they
+    actually played, split by real play counts. Play-gating drops sub-threshold engagement —
+    a skip in the first seconds costs nothing."""
+    eligible = [p for p in req.plays if p.count >= req.min_count]
+    gated_out = len(req.plays) - len(eligible)
+    if not eligible:
+        return {
+            "budget": str(req.budget),
+            "recipients": [],
+            "total_settled": "0",
+            "gated_out": gated_out,
+        }
+    pairs = split_payout(req.budget, [Contributor(p.wallet, Decimal(p.count)) for p in eligible])
+    recipients: list[dict[str, Any]] = []
+    total_settled = Decimal(0)
+    for i, (play, (c, amt)) in enumerate(zip(eligible, pairs, strict=True)):
+        tx_hash = _settle_to(f"royalty:{i}", c.wallet, amt, kind="royalty")
+        if tx_hash is not None:
+            total_settled += amt
+        recipients.append(
+            {
+                "wallet": c.wallet,
+                "plays": play.count,
+                "amount": str(amt),
+                "settled": tx_hash is not None,
+                "tx_hash": tx_hash,
+            }
+        )
+    return {
+        "budget": str(req.budget),
+        "recipients": recipients,
+        "total_settled": str(total_settled),
+        "gated_out": gated_out,
+    }
+
+
+class QfProject(BaseModel):
+    wallet: str = Field(description="0x wallet of the project")
+    contributions: list[Decimal] = Field(default_factory=list, description="Backer amounts")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class QfRequest(BaseModel):
+    pool: Decimal = Field(gt=0, description="Match pool to distribute")
+    projects: list[QfProject] = Field(min_length=1)
+
+
+@app.post("/qf")
+def qf(req: QfRequest) -> dict[str, Any]:
+    """Quadratic-funding match (PA 03/07): distribute a pool by breadth of support — a
+    project backed by many small contributions beats one backed by a single large donor.
+    Settles each project's match through the rail."""
+    pairs = quadratic_match(
+        req.pool, [Project(p.wallet, list(p.contributions)) for p in req.projects]
+    )
+    projects: list[dict[str, Any]] = []
+    total_settled = Decimal(0)
+    for i, (p, match) in enumerate(pairs):
+        tx_hash = _settle_to(f"qf:{i}", p.wallet, match, kind="qf")
+        if tx_hash is not None:
+            total_settled += match
+        projects.append(
+            {
+                "wallet": p.wallet,
+                "backers": len(p.contributions),
+                "direct_total": str(sum(p.contributions, Decimal(0))),
+                "match": str(match),
+                "settled": tx_hash is not None,
+                "tx_hash": tx_hash,
+            }
+        )
+    return {"pool": str(req.pool), "projects": projects, "total_matched": str(total_settled)}
+
+
+@app.get("/traction")
+def get_traction() -> dict[str, Any]:
+    """Settled volume rolled up across every primitive — the traction story in one call."""
+    return traction.summary()
+
+
 @app.get("/metrics")
 def metrics() -> dict[str, Any]:
     """Traction metrics — the numbers we lead with (prd.md §8)."""
@@ -183,5 +716,22 @@ def metrics() -> dict[str, Any]:
 
 @app.get("/ledger")
 def get_ledger(limit: int = 50) -> dict[str, Any]:
-    """Settlement ledger for the dashboard. Mirrors chain; chain stays canonical."""
-    return {"metrics": ledger.metrics(), "recent": ledger.recent(limit)}
+    """Settlement ledger for the dashboard. Mirrors chain; chain stays canonical.
+
+    When KERYX_LEDGER_VERIFY_CHAIN is on, each recent row is confirmed against Arc and the
+    response carries on-chain amounts + a reconciliation summary ("don't trust our DB").
+    """
+    recent = ledger.recent(limit)
+    if _chain_reader is None:
+        return {"metrics": ledger.metrics(), "recent": recent, "chain_verified": False}
+    annotated = annotate_recent(_chain_reader, recent)
+    return {
+        "metrics": ledger.metrics(),
+        "recent": annotated["entries"],
+        "chain_verified": True,
+        "verification": {
+            "verified_count": annotated["verified_count"],
+            "reconciled_usdc": annotated["reconciled_usdc"],
+            "source": annotated["source"],
+        },
+    }

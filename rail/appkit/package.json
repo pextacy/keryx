@@ -1,0 +1,22 @@
+{
+  "name": "keryx-rail-appkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "App Kit rail capabilities for Keryx: Send/Bridge/Swap/Unified Balance/Earn/Estimate USDC on Arc (alt to the x402+Gateway path).",
+  "scripts": {
+    "pay": "node --experimental-transform-types --no-warnings --env-file=.env pay-server.ts",
+    "demo": "node --experimental-transform-types --no-warnings --env-file=.env demo.ts",
+    "capabilities": "node --experimental-transform-types --no-warnings --env-file=.env capabilities-server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@circle-fin/app-kit": "^1.7.0",
+    "@circle-fin/adapter-viem-v2": "^1.11.2",
+    "viem": "^2.47.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

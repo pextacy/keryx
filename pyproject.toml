@@ -12,6 +12,8 @@ dependencies = [
     "httpx>=0.27",
     "psycopg[binary]>=3.2",
     "eth-account>=0.13",
+    "eth-abi>=5.0",
+    "eth-utils>=4.0",
     "anthropic>=0.49",
 ]
 
@@ -43,6 +45,13 @@ python_version = "3.11"
 strict = true
 exclude = ["vendor/", "web/"]
 plugins = ["pydantic.mypy"]
+
+# eth-abi / eth-utils ship py.typed but don't re-export their top-level helpers in __all__,
+# which trips strict's no-implicit-reexport. Treat their re-exports as public.
+[[tool.mypy.overrides]]
+module = ["eth_abi", "eth_abi.*", "eth_utils", "eth_utils.*"]
+implicit_reexport = true
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

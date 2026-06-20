@@ -1,4 +1,4 @@
-.PHONY: install lint fmt typecheck test check rail agent db-check demo fleet
+.PHONY: install lint fmt typecheck test check rail agent db-check demo fleet capabilities-demo capabilities-fleet
 
 install:
 	pip install -e ".[dev]"
@@ -29,5 +29,11 @@ db-check:
 demo:
 	bash scripts/demo.sh
 
+capabilities-demo:
+	bash scripts/capabilities-demo.sh
+
 fleet:
 	python -m agent.fleet --n 20
+
+capabilities-fleet:
+	python -m agent.capabilities_fleet --rounds 20
