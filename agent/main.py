@@ -10,14 +10,17 @@ startup so /ask works out of the box (set KERYX_AGENT_PRIVATE_KEY for a stable i
 
 from __future__ import annotations
 
+import logging
 import re
+import time
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
 from typing import Any
 
 from eth_account import Account
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field, field_validator
 
 from agent.attestation import AttestationSigner, verify_attestation
@@ -78,6 +81,28 @@ app = FastAPI(
     summary="Research agent + grounding verifier + attestation (CC-B)",
     lifespan=lifespan,
 )
+
+log = logging.getLogger("keryx.agent")
+
+
+@app.middleware("http")
+async def _request_log(request: Request, call_next: Any) -> Any:
+    """Tag each request with an id and log method/path/status/latency (observability)."""
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000.0
+    response.headers["X-Request-ID"] = request_id
+    log.info(
+        "%s %s -> %d (%.1fms) rid=%s",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+        request_id,
+    )
+    return response
+
 
 # Rail comes from config: MockRail by default, HttpRail when KERYX_RAIL=http (Phase 3 / M2).
 # Store + ledger are Neon-backed when KERYX_DATABASE_URL is set, else in-memory (default).

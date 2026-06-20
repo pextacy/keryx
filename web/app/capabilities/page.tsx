@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TractionPanel } from "./_panels/TractionPanel";
+import { MetricsPanel } from "./_panels/MetricsPanel";
 import { PayoutPanel } from "./_panels/PayoutPanel";
 import { BondPanel } from "./_panels/BondPanel";
 import { StreamPanel } from "./_panels/StreamPanel";
@@ -23,8 +24,9 @@ export default function CapabilitiesPage() {
         </Link>
       </div>
 
-      <div className="mt-8">
+      <div className="mt-8 grid gap-6 md:grid-cols-2">
         <TractionPanel />
+        <MetricsPanel />
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">

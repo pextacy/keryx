@@ -103,3 +103,37 @@ export interface JobResponse {
   status?: string;
   error?: string;
 }
+
+export interface ValidationResponse {
+  enabled: boolean;
+  found?: boolean;
+  validator?: string;
+  agent_id?: number;
+  response?: number;
+  passed?: boolean;
+  tag?: string;
+  error?: string;
+}
+
+export interface ReputationResponse {
+  enabled: boolean;
+  recorded: boolean;
+  agent_id?: number;
+  tx_hash?: string;
+  reason?: string;
+}
+
+export interface CircleTxResponse {
+  enabled: boolean;
+  tx_id?: string;
+  transaction?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface CitationMetrics {
+  total_settled_usdc: string;
+  citations_settled: number;
+  distinct_author_wallets: number;
+  distinct_sessions: number;
+  external_share_pct: number;
+}
