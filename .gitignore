@@ -38,3 +38,4 @@ web/.vercel/
 .idea/
 .vscode/
 *.log
+.gstack/
