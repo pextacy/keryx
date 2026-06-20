@@ -40,6 +40,7 @@ from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
 from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
+from shared.streaming import StreamBook, StreamClosed
 from shared.types import CitationIntent, SettlementStatus
 
 
@@ -105,6 +106,18 @@ _erc8183 = build_erc8183(settings)
 _circle = build_circle_wallets(settings)
 # Reputation bonds (PA 08): in-memory book; a slash settles to the claimant via the rail.
 bonds = BondBook()
+# Streaming payments (RFB 4): each tick settles the newly-accrued micro-USDC via the rail.
+streams = StreamBook()
+
+
+def _settle_to(source_id: str, wallet: str, amount: Decimal) -> str | None:
+    """Settle one amount to a wallet through the active rail; None if nothing/failed."""
+    if amount <= 0:
+        return None
+    intent = CitationIntent(source_id=source_id, author_wallet=wallet, amount=amount)
+    receipts = rail.settle([intent])
+    rc = receipts[0] if receipts else None
+    return rc.tx_hash if rc is not None and rc.status is SettlementStatus.SETTLED else None
 
 
 def _embedder_status() -> dict[str, Any]:
@@ -452,6 +465,98 @@ def resolve_bond(bond_id: str, req: ResolveRequest) -> dict[str, Any]:
         if rc is not None and rc.status is SettlementStatus.SETTLED:
             tx_hash = rc.tx_hash
     return {**_bond_view(bond), "tx_hash": tx_hash}
+
+
+class StreamRequest(BaseModel):
+    payer: str = Field(description="0x wallet authorizing the flow")
+    payee: str = Field(description="0x wallet receiving the stream")
+    rate: Decimal = Field(gt=0, description="USDC per second")
+
+    @field_validator("payer", "payee")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class TickRequest(BaseModel):
+    seconds: Decimal = Field(gt=0, description="Duration of flow to bill")
+
+
+def _stream_view(s: Any) -> dict[str, Any]:
+    return {
+        "stream_id": s.id,
+        "payer": s.payer,
+        "payee": s.payee,
+        "rate": str(s.rate),
+        "status": s.status.value,
+        "total_settled": str(s.settled),
+    }
+
+
+@app.post("/stream")
+def open_stream(req: StreamRequest) -> dict[str, Any]:
+    """Open a per-second payment stream (RFB 4): approve a rate, bill by the second."""
+    s = streams.open(payer=req.payer, payee=req.payee, rate=req.rate)
+    return _stream_view(s)
+
+
+@app.get("/stream/{stream_id}")
+def get_stream(stream_id: str) -> dict[str, Any]:
+    s = streams.get(stream_id)
+    if s is None:
+        return {"found": False, "stream_id": stream_id}
+    return {"found": True, **_stream_view(s)}
+
+
+def _tick_response(stream_id: str, billed: Decimal) -> dict[str, Any]:
+    s = streams.get(stream_id)
+    assert s is not None
+    tx_hash = _settle_to(f"stream:{stream_id}:{s.settled}", s.payee, billed)
+    return {**_stream_view(s), "billed": str(billed), "tx_hash": tx_hash}
+
+
+@app.post("/stream/{stream_id}/tick")
+def tick_stream(stream_id: str, req: TickRequest) -> dict[str, Any]:
+    """Bill ``seconds`` of flow and settle the newly-accrued micro-USDC to the payee."""
+    try:
+        billed = streams.tick(stream_id, req.seconds)
+    except KeyError:
+        return {"found": False, "stream_id": stream_id}
+    except StreamClosed:
+        return {"error": "stream_closed", "stream_id": stream_id}
+    return _tick_response(stream_id, billed)
+
+
+@app.post("/stream/{stream_id}/pause")
+def pause_stream(stream_id: str) -> dict[str, Any]:
+    try:
+        s = streams.pause(stream_id)
+    except (KeyError, StreamClosed):
+        return {"found": False, "stream_id": stream_id}
+    return _stream_view(s)
+
+
+@app.post("/stream/{stream_id}/resume")
+def resume_stream(stream_id: str) -> dict[str, Any]:
+    try:
+        s = streams.resume(stream_id)
+    except (KeyError, StreamClosed):
+        return {"found": False, "stream_id": stream_id}
+    return _stream_view(s)
+
+
+@app.post("/stream/{stream_id}/close")
+def close_stream(stream_id: str) -> dict[str, Any]:
+    """Close the stream and settle any final billable micro-USDC."""
+    try:
+        _s, billed = streams.close(stream_id)
+    except KeyError:
+        return {"found": False, "stream_id": stream_id}
+    except StreamClosed:
+        return {"error": "already_closed", "stream_id": stream_id}
+    return _tick_response(stream_id, billed)
 
 
 @app.get("/metrics")
