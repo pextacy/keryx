@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { StatusHeader } from "./_panels/StatusHeader";
 import { TractionPanel } from "./_panels/TractionPanel";
 import { MetricsPanel } from "./_panels/MetricsPanel";
 import { PayoutPanel } from "./_panels/PayoutPanel";
@@ -23,6 +24,8 @@ export default function CapabilitiesPage() {
           ← Ask
         </Link>
       </div>
+
+      <StatusHeader />
 
       <div className="mt-8 grid gap-6 md:grid-cols-2">
         <TractionPanel />

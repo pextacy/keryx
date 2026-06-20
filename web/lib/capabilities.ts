@@ -137,3 +137,19 @@ export interface CitationMetrics {
   distinct_sessions: number;
   external_share_pct: number;
 }
+
+export interface StatusResponse {
+  rail: string;
+  grounding_threshold: number;
+  sources_indexed: number;
+  llm_enabled: boolean;
+  embedder: string;
+  capabilities: {
+    erc8004: boolean;
+    erc8183: boolean;
+    circle_wallets: boolean;
+    chain_verified_ledger: boolean;
+  };
+  traction: TractionResponse;
+  citation_metrics: CitationMetrics;
+}
