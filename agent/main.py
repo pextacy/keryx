@@ -36,6 +36,7 @@ from agent.ledger_verify import annotate_recent
 from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
+from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
 from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
@@ -102,6 +103,8 @@ _erc8004 = build_erc8004(settings)
 _erc8183 = build_erc8183(settings)
 # Circle W3S wallets client; None (default) -> /circle endpoints report disabled, no network.
 _circle = build_circle_wallets(settings)
+# Reputation bonds (PA 08): in-memory book; a slash settles to the claimant via the rail.
+bonds = BondBook()
 
 
 def _embedder_status() -> dict[str, Any]:
@@ -380,6 +383,75 @@ def payout(req: PayoutRequest) -> dict[str, Any]:
         "recipients": recipients,
         "total_settled": str(total_settled),
     }
+
+
+class BondRequest(BaseModel):
+    provider: str = Field(description="0x wallet of the agent posting the bond")
+    claimant: str = Field(description="0x wallet paid if the provider is slashed")
+    amount: Decimal = Field(gt=0, description="USDC bond at risk")
+
+    @field_validator("provider", "claimant")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class ResolveRequest(BaseModel):
+    passed: bool = Field(description="True if the provider delivered (release), else slash")
+
+
+def _bond_view(b: Any) -> dict[str, Any]:
+    return {
+        "bond_id": b.id,
+        "provider": b.provider,
+        "claimant": b.claimant,
+        "amount": str(b.amount),
+        "status": b.status.value,
+        "reputation_delta": b.reputation_delta,
+    }
+
+
+@app.post("/bond")
+def post_bond(req: BondRequest) -> dict[str, Any]:
+    """Post a USDC reputation bond standing behind a match (PA 08 / RFB 3)."""
+    bond = bonds.post(provider=req.provider, amount=req.amount, claimant=req.claimant)
+    return _bond_view(bond)
+
+
+@app.get("/bond/{bond_id}")
+def get_bond(bond_id: str) -> dict[str, Any]:
+    bond = bonds.get(bond_id)
+    if bond is None:
+        return {"found": False, "bond_id": bond_id}
+    return {"found": True, **_bond_view(bond)}
+
+
+@app.post("/bond/{bond_id}/resolve")
+def resolve_bond(bond_id: str, req: ResolveRequest) -> dict[str, Any]:
+    """Resolve a bond: release to the provider on a pass, or slash to the claimant on a fail.
+
+    A slash settles the bond amount to the wronged claimant through the active rail —
+    reputation as capital at risk, not a self-reported score.
+    """
+    try:
+        bond = bonds.resolve(bond_id, passed=req.passed)
+    except KeyError:
+        return {"found": False, "bond_id": bond_id}
+    except BondAlreadyResolved:
+        return {"error": "already_resolved", "bond_id": bond_id}
+
+    tx_hash: str | None = None
+    if bond.status is BondStatus.SLASHED:
+        intent = CitationIntent(
+            source_id=f"slash:{bond.id}", author_wallet=bond.claimant, amount=bond.amount
+        )
+        receipts = rail.settle([intent])
+        rc = receipts[0] if receipts else None
+        if rc is not None and rc.status is SettlementStatus.SETTLED:
+            tx_hash = rc.tx_hash
+    return {**_bond_view(bond), "tx_hash": tx_hash}
 
 
 @app.get("/metrics")
