@@ -1,0 +1,35 @@
+# Render Blueprint — one-command deploy of the Keryx agent (Docker) + web (Next.js).
+# Spec: https://render.com/docs/blueprint-spec   Deploy: New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: keryx-agent
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: KERYX_RAIL
+        value: mock # flip to http (+ run rail/m0_spike/payer.ts) for real on-chain settlement
+      - key: KERYX_RATE_LIMIT_PER_MINUTE
+        value: "60" # per-IP cap; basic abuse protection for the open demo
+      - key: KERYX_API_KEY
+        sync: false # optional: set to require X-API-Key on the settlement endpoints
+      # Opt-in integrations — set in the dashboard to activate (all default off / offline):
+      # KERYX_DATABASE_URL, KERYX_RPC_URL, KERYX_ANTHROPIC_API_KEY, KERYX_VOYAGE_API_KEY,
+      # KERYX_ERC8004_ENABLED, KERYX_ERC8183_ENABLED, KERYX_LEDGER_VERIFY_CHAIN, KERYX_AGENT_PRIVATE_KEY
+
+  - type: web
+    name: keryx-web
+    runtime: node
+    rootDir: web
+    plan: free
+    buildCommand: corepack enable && pnpm install && pnpm build
+    startCommand: pnpm start
+    envVars:
+      - key: AGENT_URL
+        fromService:
+          type: web
+          name: keryx-agent
+          property: host # hostname only; the proxy prepends https:// (web/lib/proxy.ts)
+      - key: AGENT_API_KEY
+        sync: false # set to keryx-agent's KERYX_API_KEY to forward auth from the proxy

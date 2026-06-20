@@ -38,6 +38,9 @@ Shows the whole system working (answer → grounded citations → settlement →
 attestation → traction metrics) against the mock rail — no testnet funds needed. For
 real on-chain settlement, see "The rail" below.
 
+**Deploy:** one Render Blueprint ships both services (agent via Docker + web) with
+offline-safe defaults — see [`docs/DEPLOY.md`](docs/DEPLOY.md) (`render.yaml`, `Dockerfile`).
+
 ## Nanopayment capabilities
 
 Beyond the citation toll, Keryx exposes the full set of sub-cent primitives the Lepton
