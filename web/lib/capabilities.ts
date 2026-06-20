@@ -24,6 +24,7 @@ export interface BondResponse {
   status: BondStatus;
   reputation_delta: number;
   tx_hash?: string | null;
+  escrow?: { tx_hash?: string; status?: string; error?: string };
   found?: boolean;
   error?: string;
 }

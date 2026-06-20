@@ -117,6 +117,18 @@ export function BondPanel() {
               </a>
             </div>
           )}
+          {bond.escrow?.tx_hash && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">escrow anchor</span>
+              <a
+                href={ARC_EXPLORER_TX + bond.escrow.tx_hash}
+                target="_blank"
+                className="text-blue-600 underline"
+              >
+                {bond.escrow.tx_hash.slice(0, 14)}…
+              </a>
+            </div>
+          )}
         </dl>
       )}
     </Card>

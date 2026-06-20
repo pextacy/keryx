@@ -434,11 +434,45 @@ def _bond_view(b: Any) -> dict[str, Any]:
     }
 
 
+# Far-future expiry for the on-chain escrow anchor (year 2100); the bond resolves long before.
+_ESCROW_EXPIRY = 4102444800
+
+
+def _escrow_anchor(bond: Any) -> dict[str, Any] | None:
+    """Best-effort on-chain ERC-8183 escrow backing a bond (opt-in; needs key + funds).
+
+    None when ERC-8183 is disabled or read-only (the offline bond is unchanged). Otherwise
+    submits a real createJob tx as proof-of-escrow; any failure degrades to an error field
+    rather than breaking the bond. The reference contract releases to the provider on
+    complete, so the slash-to-claimant transfer still goes through the rail.
+    """
+    if _erc8183 is None or not _erc8183.can_write:
+        return None
+    try:
+        tx_hash = _erc8183.create_job(
+            provider=bond.provider,
+            evaluator=bond.claimant,
+            expired_at=_ESCROW_EXPIRY,
+            description=f"keryx-bond:{bond.id}",
+        )
+        return {"tx_hash": tx_hash, "status": "submitted"}
+    except Exception as exc:  # noqa: BLE001 — escrow is best-effort; never break the bond
+        return {"error": type(exc).__name__}
+
+
 @app.post("/bond")
 def post_bond(req: BondRequest) -> dict[str, Any]:
-    """Post a USDC reputation bond standing behind a match (PA 08 / RFB 3)."""
+    """Post a USDC reputation bond standing behind a match (PA 08 / RFB 3).
+
+    When ERC-8183 is enabled with a signing key, the bond is also anchored in a real on-chain
+    job escrow (``escrow`` field); otherwise it is the in-memory bond settled via the rail.
+    """
     bond = bonds.post(provider=req.provider, amount=req.amount, claimant=req.claimant)
-    return _bond_view(bond)
+    view = _bond_view(bond)
+    anchor = _escrow_anchor(bond)
+    if anchor is not None:
+        view["escrow"] = anchor
+    return view
 
 
 @app.get("/bond/{bond_id}")
