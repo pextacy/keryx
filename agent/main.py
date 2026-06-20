@@ -733,6 +733,27 @@ def get_traction() -> dict[str, Any]:
     return traction.summary()
 
 
+@app.get("/status")
+def status() -> dict[str, Any]:
+    """One-call dashboard bootstrap: live config + traction + citation metrics + which
+    capabilities are enabled. Lets the UI render the whole picture from a single fetch."""
+    return {
+        "rail": type(rail).__name__,
+        "grounding_threshold": settings.grounding_threshold,
+        "sources_indexed": len(registry.all()),
+        "llm_enabled": llm_enabled(settings),
+        **_embedder_status(),
+        "capabilities": {
+            "erc8004": _erc8004 is not None,
+            "erc8183": _erc8183 is not None,
+            "circle_wallets": _circle is not None,
+            "chain_verified_ledger": _chain_reader is not None,
+        },
+        "traction": traction.summary(),
+        "citation_metrics": ledger.metrics(),
+    }
+
+
 @app.get("/metrics")
 def metrics() -> dict[str, Any]:
     """Traction metrics — the numbers we lead with (prd.md §8)."""
