@@ -74,6 +74,20 @@ export interface QfResponse {
   total_matched: string;
 }
 
+export interface RetroProjectResult {
+  wallet: string;
+  impact: number;
+  award: string;
+  settled: boolean;
+  tx_hash: string | null;
+}
+
+export interface RetroResponse {
+  pool: string;
+  projects: RetroProjectResult[];
+  total_awarded: string;
+}
+
 // On-chain read endpoints all share an opt-in `enabled` flag (default false).
 export interface IdentityResponse {
   enabled: boolean;

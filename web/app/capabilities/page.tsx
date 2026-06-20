@@ -7,6 +7,7 @@ import { BondPanel } from "./_panels/BondPanel";
 import { StreamPanel } from "./_panels/StreamPanel";
 import { RoyaltiesPanel } from "./_panels/RoyaltiesPanel";
 import { QfPanel } from "./_panels/QfPanel";
+import { RetroPanel } from "./_panels/RetroPanel";
 import { OnchainPanel } from "./_panels/OnchainPanel";
 
 export default function CapabilitiesPage() {
@@ -38,6 +39,7 @@ export default function CapabilitiesPage() {
         <StreamPanel />
         <RoyaltiesPanel />
         <QfPanel />
+        <RetroPanel />
         <OnchainPanel />
       </div>
     </main>

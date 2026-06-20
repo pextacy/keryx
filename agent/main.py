@@ -727,6 +727,50 @@ def qf(req: QfRequest) -> dict[str, Any]:
     return {"pool": str(req.pool), "projects": projects, "total_matched": str(total_settled)}
 
 
+class RetroProject(BaseModel):
+    wallet: str = Field(description="0x wallet of the project/creator")
+    impact: int = Field(ge=0, description="Realized impact: distinct people who engaged")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class RetroRequest(BaseModel):
+    pool: Decimal = Field(gt=0, description="Retroactive pool to distribute after the fact")
+    projects: list[RetroProject] = Field(min_length=1)
+
+
+@app.post("/retro")
+def retro(req: RetroRequest) -> dict[str, Any]:
+    """Retroactive funding (PA 07): pay out a pool *after the fact* to what proved valuable,
+    weighted quadratically by realized impact (distinct engagers) — breadth of impact wins,
+    not who shouted loudest. Each engager counts as one unit, so weight = impact². Settles
+    each project's award through the rail."""
+    pairs = quadratic_match(
+        req.pool, [Project(p.wallet, [Decimal(1)] * p.impact) for p in req.projects]
+    )
+    projects: list[dict[str, Any]] = []
+    total_settled = Decimal(0)
+    for i, ((p, award), src) in enumerate(zip(pairs, req.projects, strict=True)):
+        tx_hash = _settle_to(f"retro:{i}", p.wallet, award, kind="retro")
+        if tx_hash is not None:
+            total_settled += award
+        projects.append(
+            {
+                "wallet": p.wallet,
+                "impact": src.impact,
+                "award": str(award),
+                "settled": tx_hash is not None,
+                "tx_hash": tx_hash,
+            }
+        )
+    return {"pool": str(req.pool), "projects": projects, "total_awarded": str(total_settled)}
+
+
 @app.get("/traction")
 def get_traction() -> dict[str, Any]:
     """Settled volume rolled up across every primitive — the traction story in one call."""
@@ -780,4 +824,34 @@ def get_ledger(limit: int = 50) -> dict[str, Any]:
             "reconciled_usdc": annotated["reconciled_usdc"],
             "source": annotated["source"],
         },
+    }
+
+
+@app.get("/reconcile")
+def reconcile(limit: int = 50) -> dict[str, Any]:
+    """Reconcile the off-chain ledger against chain — "don't trust our DB, here's the chain".
+
+    Confirms each recent citation tx on Arc and reports matched vs unverified counts and the
+    on-chain-reconciled total. Opt-in (KERYX_LEDGER_VERIFY_CHAIN); without it the ledger is
+    the mirror and there is nothing to reconcile against.
+    """
+    recent = ledger.recent(limit)
+    if _chain_reader is None:
+        return {"enabled": False, "ledger_rows": len(recent)}
+    annotated = annotate_recent(_chain_reader, recent)
+    entries_obj = annotated["entries"]
+    entries: list[Any] = entries_obj if isinstance(entries_obj, list) else []
+    unverified = [
+        {"tx_hash": e.get("tx_hash"), "reason": e.get("chain_reason")}
+        for e in entries
+        if not e.get("chain_verified")
+    ]
+    return {
+        "enabled": True,
+        "ledger_rows": len(entries),
+        "verified": annotated["verified_count"],
+        "unverified": len(unverified),
+        "reconciled_usdc": annotated["reconciled_usdc"],
+        "mismatches": unverified[:limit],
+        "in_sync": len(unverified) == 0,
     }

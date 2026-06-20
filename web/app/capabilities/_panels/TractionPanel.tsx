@@ -11,6 +11,7 @@ const KIND_LABEL: Record<string, string> = {
   stream: "Streaming",
   royalty: "User royalties",
   qf: "Quadratic funding",
+  retro: "Retroactive funding",
 };
 
 const w = (n: number) => "0x" + (0x1000 + n).toString(16).padStart(40, "0");
