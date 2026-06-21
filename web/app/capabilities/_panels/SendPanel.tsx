@@ -10,7 +10,9 @@ import { Card, ErrorNote, Field } from "./Card";
 export function SendPanel() {
   const [to, setTo] = useState("0x" + "a".repeat(40));
   const [amount, setAmount] = useState("0.01");
-  const [memo, setMemo] = useState("grounded: https://example.com/post");
+  const [memo, setMemo] = useState("grounded g=0.91");
+  const [kind, setKind] = useState("citation");
+  const [ref, setRef] = useState("https://example.com/post");
   const [refundTo, setRefundTo] = useState("0x" + "9".repeat(40));
   const [res, setRes] = useState<SendResponse | null>(null);
   const [refunded, setRefunded] = useState(false);
@@ -22,7 +24,16 @@ export function SendPanel() {
     setError(null);
     setRefunded(false);
     try {
-      setRes(await postJson<SendResponse>("/api/send", { to, amount, memo, refund_to: refundTo }));
+      setRes(
+        await postJson<SendResponse>("/api/send", {
+          to,
+          amount,
+          memo,
+          kind,
+          ref,
+          refund_to: refundTo,
+        }),
+      );
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -67,6 +78,26 @@ export function SendPanel() {
             onChange={(e) => setMemo(e.target.value)}
             className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
             placeholder="citation URL, attestation hash, job id…"
+          />
+        </Field>
+      </div>
+      <div className="mt-2 flex gap-2">
+        <Field label="Kind (recibo)">
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+          >
+            {["citation", "invoice", "attestation", "job", "note", "other"].map((k) => (
+              <option key={k}>{k}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Ref (URL / hash / id)">
+          <input
+            value={ref}
+            onChange={(e) => setRef(e.target.value)}
+            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
           />
         </Field>
       </div>

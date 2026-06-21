@@ -92,8 +92,32 @@ export interface SendResponse {
   to: string;
   amount: string;
   memo: string;
+  kind?: string;
+  ref?: string;
   settled: boolean;
   tx_hash: string | null;
+}
+
+// Recibo-style structured memo envelope (kind/ref/note + metadata + routing).
+export interface MemoMeta {
+  kind: string;
+  ref: string;
+  note: string;
+  message_from: string;
+  message_to: string;
+  version: number;
+  scheme: string;
+}
+
+export interface MemoItem {
+  tx_hash: string;
+  memo: string | null;
+  meta: MemoMeta | null;
+}
+
+export interface MemosResponse {
+  count: number;
+  memos: MemoItem[];
 }
 
 // On-chain read endpoints all share an opt-in `enabled` flag (default false).

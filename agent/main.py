@@ -41,6 +41,7 @@ from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
+from shared.memo import Memo, build_memo
 from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
@@ -146,9 +147,21 @@ bonds = BondBook()
 streams = StreamBook()
 # Traction: rolls up settled volume across every primitive (the 30%-weighted judging axis).
 traction = TractionBook()
-# Provenance memos attached to settlements (tx_hash -> memo). On-chain this is the transfer
-# memo field (Arc "Send USDC with a memo" / circlefin/recibo); here it travels with the receipt.
+# Provenance memos attached to settlements (tx_hash -> one-line memo). On-chain this is the
+# transfer memo field (Arc "Send USDC with a memo" / circlefin/recibo); here it travels with
+# the receipt. ``_memo_meta`` holds the structured recibo-style envelope (kind/ref/note/routing).
 _memos: dict[str, str] = {}
+_memo_meta: dict[str, dict[str, object]] = {}
+
+
+def _record_memo(tx_hash: str, memo: Memo) -> None:
+    """Bind a structured provenance memo to a settlement tx (plaintext line + envelope)."""
+    line = memo.line()
+    if line:
+        _memos[tx_hash] = line
+    _memo_meta[tx_hash] = memo.as_dict()
+
+
 # Refundable sends (tx_hash -> {to, amount, refunded}) for the dispute/refund flow
 # (inspired by circlefin/refund-protocol — stablecoin payment disputes).
 _sends: dict[str, dict[str, Any]] = {}
@@ -837,6 +850,10 @@ class SendRequest(BaseModel):
     memo: str = Field(
         default="", max_length=280, description="Provenance memo travelling with the payment"
     )
+    kind: str = Field(default="note", description="What the payment is for (recibo memo taxonomy)")
+    ref: str = Field(
+        default="", max_length=280, description="Referenced thing: citation URL, hash, job id"
+    )
     refund_to: str = Field(
         default="",
         description="0x refund destination, bound at send time (circlefin/refund-protocol)",
@@ -864,9 +881,15 @@ def send(req: SendRequest) -> dict[str, Any]:
     A plain transfer whose memo carries why it was paid — a citation URL, an attestation hash,
     a job id. The memo is bound to the settlement and retrievable by tx via GET /memo/{tx}."""
     tx_hash = _settle_to(f"send:{len(_memos)}", req.to, req.amount, kind="send")
+    memo = build_memo(
+        kind=req.kind,
+        ref=req.ref,
+        note=req.memo,
+        message_from=signer.address,
+        message_to=req.to,
+    )
     if tx_hash is not None:
-        if req.memo:
-            _memos[tx_hash] = req.memo
+        _record_memo(tx_hash, memo)
         _sends[tx_hash] = {
             "to": req.to,
             "amount": req.amount,
@@ -876,7 +899,9 @@ def send(req: SendRequest) -> dict[str, Any]:
     return {
         "to": req.to,
         "amount": str(req.amount),
-        "memo": req.memo,
+        "memo": memo.line(),
+        "kind": memo.kind,
+        "ref": memo.ref,
         "settled": tx_hash is not None,
         "tx_hash": tx_hash,
     }
@@ -919,7 +944,16 @@ def refund(tx_hash: str, req: RefundRequest) -> dict[str, Any]:
     refund_tx = _settle_to(f"refund:{tx_hash}", destination, record["amount"], kind="refund")
     if refund_tx is not None:
         record["refunded"] = True
-        _memos[refund_tx] = f"refund ({req.reason}, by {req.by}) of {tx_hash}"
+        _record_memo(
+            refund_tx,
+            build_memo(
+                kind="refund",
+                ref=tx_hash,
+                note=f"{req.reason}, by {req.by}",
+                message_from=destination,
+                message_to=destination,
+            ),
+        )
     return {
         "refunded": refund_tx is not None,
         "original_tx": tx_hash,
@@ -979,22 +1013,43 @@ def swap(req: SwapRequest) -> dict[str, Any]:
         return {"error": str(exc)}
     destination = req.to or _demo_wallet(7)
     tx_hash = _settle_to(f"swap:{q.token_in}-{q.token_out}", destination, q.amount_out, kind="swap")
+    if tx_hash is not None:
+        _record_memo(
+            tx_hash,
+            build_memo(
+                kind="swap",
+                ref=f"{q.token_in}->{q.token_out}",
+                note=f"{q.amount_in} {q.token_in} -> {q.amount_out} {q.token_out}",
+                message_from=signer.address,
+                message_to=destination,
+            ),
+        )
     payload = _quote_payload(q)
     payload.update({"to": destination, "settled": tx_hash is not None, "tx_hash": tx_hash})
     return payload
 
 
+def _memo_item(tx_hash: str) -> dict[str, Any]:
+    """A receipt: the tx, its one-line memo, and the structured recibo envelope (if any)."""
+    return {"tx_hash": tx_hash, "memo": _memos.get(tx_hash), "meta": _memo_meta.get(tx_hash)}
+
+
 @app.get("/memo/{tx_hash}", tags=["ledger-ops"])
 def get_memo(tx_hash: str) -> dict[str, Any]:
-    """Read the provenance memo bound to a settlement tx."""
-    memo = _memos.get(tx_hash)
-    return {"tx_hash": tx_hash, "found": memo is not None, "memo": memo}
+    """Read the provenance memo bound to a settlement tx (recibo-style receipt)."""
+    found = tx_hash in _memos or tx_hash in _memo_meta
+    return {"found": found, **_memo_item(tx_hash)}
 
 
 @app.get("/memos", tags=["ledger-ops"])
-def list_memos(limit: int = 20) -> dict[str, Any]:
-    """Recent provenance memos (most recent first) — a feed of why payments were made."""
-    items = [{"tx_hash": tx, "memo": memo} for tx, memo in reversed(list(_memos.items()))]
+def list_memos(limit: int = 20, kind: str = "") -> dict[str, Any]:
+    """Recent provenance memos (most recent first) — a recibo-style feed of why payments were
+    made. Optional ``kind`` filters the feed to one memo taxonomy (citation/swap/refund/...)."""
+    # _memo_meta preserves insertion order and every recorded memo has an envelope.
+    items = [_memo_item(tx) for tx in reversed(list(_memo_meta))]
+    if kind:
+        k = kind.strip().lower()
+        items = [it for it in items if (it["meta"] or {}).get("kind") == k]
     return {"count": len(items), "memos": items[: max(0, limit)]}
 
 
