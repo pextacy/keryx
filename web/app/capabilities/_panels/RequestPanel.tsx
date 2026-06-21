@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { errorMessage, postJson } from "@/lib/api";
+import { errorMessage, getJson, postJson } from "@/lib/api";
 import type { RequestResponse } from "@/lib/capabilities";
 import { useToast } from "@/app/Toast";
+import { Copy } from "@/app/Copy";
 import { Card, ErrorNote, Field } from "./Card";
 import { TxLink } from "./TxLink";
 
@@ -16,8 +17,22 @@ export function RequestPanel() {
   const [payers, setPayers] = useState("0x" + "a".repeat(40) + "\n0x" + "b".repeat(40));
   const [total, setTotal] = useState("0.10");
   const [req, setReq] = useState<RequestResponse | null>(null);
+  const [lookupId, setLookupId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  async function lookup() {
+    const id = lookupId.trim();
+    if (!id) return;
+    setError(null);
+    try {
+      const r = await getJson<RequestResponse>(`/api/request/${encodeURIComponent(id)}`);
+      if (r.found === false) setError(`no request ${id}`);
+      else setReq(r);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
 
   async function create() {
     setBusy(true);
@@ -101,11 +116,34 @@ export function RequestPanel() {
           >
             {busy ? "Creating…" : "Create request"}
           </button>
+
+          <div className="mt-4 border-t pt-3">
+            <Field label="…or open a shared request by id">
+              <div className="flex gap-2">
+                <input
+                  value={lookupId}
+                  onChange={(e) => setLookupId(e.target.value)}
+                  placeholder="req-1"
+                  className="w-28 rounded border border-gray-300 px-2 py-1 font-mono text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => void lookup()}
+                  className="rounded border px-3 py-1.5 text-sm"
+                >
+                  Open
+                </button>
+              </div>
+            </Field>
+          </div>
         </>
       ) : (
         <>
           <div className="flex items-center justify-between text-sm">
-            <span className="font-mono text-gray-500">{req.id}</span>
+            <span className="flex items-center gap-1">
+              <span className="font-mono text-gray-500">{req.id}</span>
+              <Copy text={req.id} label="share" />
+            </span>
             <span
               className={`rounded px-2 py-0.5 text-xs font-medium ${
                 settled ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
