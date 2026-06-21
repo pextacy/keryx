@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { errorMessage, getJson, postJson } from "@/lib/api";
+import { ARC_EXPLORER_TX } from "@/lib/types";
 
 interface VerifyResult {
   verified: boolean;
@@ -14,6 +15,11 @@ interface MemoResult {
   tx_hash: string;
   found: boolean;
   memo: string | null;
+}
+
+interface MemoItem {
+  tx_hash: string;
+  memo: string;
 }
 
 const PLACEHOLDER = `{
@@ -32,6 +38,13 @@ export default function AuditPage() {
   const [busy, setBusy] = useState(false);
   const [tx, setTx] = useState("");
   const [memo, setMemo] = useState<MemoResult | null>(null);
+  const [feed, setFeed] = useState<MemoItem[]>([]);
+
+  useEffect(() => {
+    getJson<{ memos: MemoItem[] }>("/api/memos")
+      .then((d) => setFeed(d.memos))
+      .catch(() => setFeed([]));
+  }, [memo]);
 
   async function verify() {
     setBusy(true);
@@ -119,6 +132,26 @@ export default function AuditPage() {
         <p className="mt-3 rounded border border-gray-200 p-3 text-sm">
           {memo.found ? memo.memo : <span className="text-gray-400">no memo for this tx</span>}
         </p>
+      )}
+
+      {feed.length > 0 && (
+        <>
+          <h2 className="mt-10 text-lg font-medium">Recent memos</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {feed.map((m) => (
+              <li key={m.tx_hash} className="flex items-center justify-between gap-3">
+                <span className="truncate">{m.memo}</span>
+                <a
+                  href={ARC_EXPLORER_TX + m.tx_hash}
+                  target="_blank"
+                  className="shrink-0 font-mono text-xs text-blue-600 underline"
+                >
+                  {m.tx_hash.slice(0, 10)}…
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </main>
   );

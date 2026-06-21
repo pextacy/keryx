@@ -859,6 +859,13 @@ def get_memo(tx_hash: str) -> dict[str, Any]:
     return {"tx_hash": tx_hash, "found": memo is not None, "memo": memo}
 
 
+@app.get("/memos")
+def list_memos(limit: int = 20) -> dict[str, Any]:
+    """Recent provenance memos (most recent first) — a feed of why payments were made."""
+    items = [{"tx_hash": tx, "memo": memo} for tx, memo in reversed(list(_memos.items()))]
+    return {"count": len(items), "memos": items[: max(0, limit)]}
+
+
 @app.get("/traction")
 def get_traction() -> dict[str, Any]:
     """Settled volume rolled up across every primitive — the traction story in one call."""
