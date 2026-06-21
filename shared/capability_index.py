@@ -68,6 +68,13 @@ CAPABILITIES: tuple[Capability, ...] = (
         "Pay-per-second flow billed live with no dust.",
     ),
     Capability(
+        "Recurring schedule",
+        "settlement",
+        ("POST /schedule", "POST /schedule/{id}/run"),
+        "A fixed amount paid per run for N runs — subscription/payroll style.",
+        upstream="arc-fintech",
+    ),
+    Capability(
         "Send with memo",
         "provenance",
         ("POST /send", "GET /memo/{tx}"),

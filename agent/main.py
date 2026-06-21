@@ -51,6 +51,7 @@ from shared.orders import OrderBook, OrderError
 from shared.p2p import RequestBook, RequestError
 from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
+from shared.schedule import ScheduleBook, ScheduleError
 from shared.splits import Contributor, split_payout
 from shared.streaming import StreamBook, StreamClosed
 from shared.swap import SwapError
@@ -196,6 +197,9 @@ _escrows = EscrowBook()
 # Multi-item orders (ported from circlefin/arc-commerce checkout): bundle line-items paying
 # different recipients into one order, settled together at checkout.
 _orders = OrderBook()
+# Recurring payment schedules (arc-fintech scheduled payouts): a fixed amount per run for N
+# runs — the discrete counterpart to streaming.
+_schedules = ScheduleBook()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -1748,6 +1752,89 @@ def get_order(oid: str) -> dict[str, Any]:
     return {"found": True, **_order_view(order)}
 
 
+# --- Recurring payment schedules (arc-fintech scheduled payouts) ---
+
+
+class ScheduleCreate(BaseModel):
+    payer: str = Field(description="0x wallet committing to the recurring payment")
+    payee: str = Field(description="0x recipient of each installment")
+    amount: Decimal = Field(gt=0, description="USDC paid per run")
+    runs: int = Field(gt=0, le=1000, description="Number of installments")
+
+    @field_validator("payer", "payee")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+def _schedule_view(s: Any) -> dict[str, Any]:
+    return {
+        "id": s.id,
+        "payer": s.payer,
+        "payee": s.payee,
+        "amount": str(s.amount),
+        "total_runs": s.total_runs,
+        "runs_done": s.runs_done,
+        "runs_left": s.runs_left,
+        "paid": str(s.paid_total()),
+        "remaining": str(s.remaining_total()),
+        "status": s.status.value,
+        "tx_hashes": s.tx_hashes,
+    }
+
+
+@app.post("/schedule", tags=["primitives"])
+def create_schedule(req: ScheduleCreate) -> dict[str, Any]:
+    """Open a recurring payment schedule — a fixed ``amount`` paid to the payee for ``runs``
+    installments (ported from circlefin/arc-fintech scheduled payouts). Advance with /run."""
+    try:
+        s = _schedules.create(req.payer, req.payee, req.amount, req.runs)
+    except ScheduleError as exc:
+        return {"error": str(exc)}
+    return _schedule_view(s)
+
+
+@app.post("/schedule/{sid}/run", tags=["primitives"])
+def run_schedule(sid: str) -> dict[str, Any]:
+    """Run the next installment — settle one fixed payment to the payee via the rail, then
+    advance the schedule (two-step so a failed settlement never advances it)."""
+    schedule = _schedules.get(sid)
+    if schedule is None:
+        return {"found": False, "id": sid}
+    try:
+        schedule = _schedules.prepare_run(sid)
+    except ScheduleError as exc:
+        return {"error": str(exc), "id": sid}
+    tx_hash = _settle_to(
+        f"schedule:{sid}:{schedule.runs_done}", schedule.payee, schedule.amount, kind="schedule"
+    )
+    if tx_hash is None:
+        return {"error": "settlement_failed", "id": sid}
+    _schedules.ran(schedule, tx_hash)
+    return {"ran": True, "tx_hash": tx_hash, **_schedule_view(schedule)}
+
+
+@app.post("/schedule/{sid}/cancel", tags=["primitives"])
+def cancel_schedule(sid: str) -> dict[str, Any]:
+    """Cancel a schedule — no further installments run (already-paid runs stand)."""
+    try:
+        schedule = _schedules.cancel(sid)
+    except ScheduleError as exc:
+        return {"error": str(exc), "id": sid}
+    return _schedule_view(schedule)
+
+
+@app.get("/schedule/{sid}", tags=["primitives"])
+def get_schedule(sid: str) -> dict[str, Any]:
+    """Read a recurring schedule — runs done/left, paid vs remaining commitment."""
+    schedule = _schedules.get(sid)
+    if schedule is None:
+        return {"found": False, "id": sid}
+    return {"found": True, **_schedule_view(schedule)}
+
+
 @app.get("/balance", tags=["ledger-ops"])
 def balance() -> dict[str, Any]:
     """Unified balance — one aggregated view of the agent's economic state across every book
@@ -1924,7 +2011,7 @@ def demo_reset() -> dict[str, Any]:
 
     Does NOT touch the citation ledger or any chain state — only the primitive sandboxes."""
     global traction, bonds, streams, _demo_offset
-    global _credits, _requests, _workflows, _treasury, _gateway, _escrows, _orders
+    global _credits, _requests, _workflows, _treasury, _gateway, _escrows, _orders, _schedules
     traction = TractionBook()
     bonds = BondBook()
     streams = StreamBook()
@@ -1935,6 +2022,7 @@ def demo_reset() -> dict[str, Any]:
     _gateway = GatewayBook()
     _escrows = EscrowBook()
     _orders = OrderBook()
+    _schedules = ScheduleBook()
     _memos.clear()
     _memo_objs.clear()
     _sends.clear()
@@ -1977,6 +2065,7 @@ def _books_summary() -> dict[str, Any]:
         "gateway": _gateway.summary(),
         "escrow": _escrows.summary(),
         "orders": _orders.summary(),
+        "schedules": _schedules.summary(),
         "memos": len(_memo_objs),
         "sends": len(_sends),
     }
