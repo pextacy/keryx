@@ -264,6 +264,23 @@ export interface MemoThreadResponse {
   replies?: MemoItem[];
 }
 
+// Machine-readable capability index (GET /capabilities).
+export interface CapabilityEntry {
+  name: string;
+  category: string;
+  endpoints: string[];
+  summary: string;
+  upstream: string | null;
+  ported: boolean;
+}
+
+export interface CapabilityIndex {
+  count: number;
+  ported: number;
+  by_category: Record<string, number>;
+  capabilities: CapabilityEntry[];
+}
+
 // On-chain read endpoints all share an opt-in `enabled` flag (default false).
 export interface IdentityResponse {
   enabled: boolean;

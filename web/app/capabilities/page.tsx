@@ -1,5 +1,6 @@
 import { StatusHeader } from "./_panels/StatusHeader";
 import { CheatsheetPanel } from "./_panels/CheatsheetPanel";
+import { CapabilityIndexPanel } from "./_panels/CapabilityIndexPanel";
 import { TractionPanel } from "./_panels/TractionPanel";
 import { MetricsPanel } from "./_panels/MetricsPanel";
 import { SendPanel } from "./_panels/SendPanel";
@@ -32,6 +33,10 @@ export default function CapabilitiesPage() {
 
       <div className="mt-6">
         <CheatsheetPanel />
+      </div>
+
+      <div className="mt-6">
+        <CapabilityIndexPanel />
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
