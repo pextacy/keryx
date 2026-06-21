@@ -78,6 +78,7 @@ their provenance.
 
 ```bash
 make capabilities-demo    # boots the agent, drives every primitive, prints rolled-up /traction
+make kitchen-sink         # curls every primitive end-to-end, PASS/FAIL per capability (29 checks)
 ```
 
 Full reference with copy-paste `curl` for each: [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).

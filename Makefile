@@ -1,4 +1,4 @@
-.PHONY: install lint fmt typecheck test check rail agent db-check demo fleet capabilities-demo capabilities-fleet
+.PHONY: install lint fmt typecheck test check rail agent db-check demo fleet capabilities-demo capabilities-fleet kitchen-sink
 
 install:
 	pip install -e ".[dev]"
@@ -31,6 +31,9 @@ demo:
 
 capabilities-demo:
 	bash scripts/capabilities-demo.sh
+
+kitchen-sink:
+	bash scripts/kitchen-sink.sh
 
 fleet:
 	python -m agent.fleet --n 20
