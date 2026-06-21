@@ -93,7 +93,7 @@ python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env                  # optional; sane defaults built in
 
-pytest                                # 41 tests (contract, grounding, LLM judge/answerer, attestation, pipeline, ledger)
+pytest                                # 219 tests (contract, grounding, LLM judge/answerer, attestation, pipeline, ledger, primitives)
 uvicorn agent.main:app --reload       # CC-B -> http://127.0.0.1:8000
 
 # Ask a question (full citation loop against the mock rail):
@@ -105,9 +105,12 @@ curl -s localhost:8000/metrics | jq
 python -m agent.fleet --n 20
 ```
 
-Agent endpoints: `POST /ask`, `GET /ledger`, `GET /metrics`, `GET /traction`, `GET /config`,
-`GET /healthz`, plus the nanopayment primitives above (`/payout`, `/bond`, `/stream`,
-`/royalties`, `/qf`) and opt-in on-chain reads — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
+Agent endpoints: `POST /ask`, `GET /ledger`, `GET /metrics`, `GET /traction`, `GET /history`,
+`GET /balance`, `GET /config`, `GET /healthz`, `GET /capabilities`, `GET /agent/tools`, plus
+every nanopayment primitive above (`/payout`, `/bond`, `/stream`, `/schedule`, `/royalties`,
+`/qf`, `/retro`) and the Circle ports (`/send`, `/swap`, `/request`, `/credits/*`, `/order`,
+`/escrow`, `/gateway/*`, `/treasury`, `/workflow/*`, `/refund/{tx}`, `/memos`) and opt-in
+on-chain reads — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
 
 ## Quickstart (web surface)
 
@@ -166,7 +169,7 @@ Circle faucet (your authentication) — see `SETUP.md`.
 | --- | --- | --- |
 | 0 Foundation | scaffold, frozen contract, Neon schema, CI, licensing | — ✅ |
 | 1 M0 rail spike | verified signatures, runnable spike, seller emits correct 402 | funded tx (faucet) |
-| 2 M1 agent | grounding moat (Claude judge + answerer, heuristic fallback) + attestation + `/ask` + registry (41 tests) | — ✅ |
+| 2 M1 agent | grounding moat (Claude judge + answerer, heuristic fallback) + attestation + `/ask` + registry | — ✅ |
 | 3 M2 integration | TS payer bridge + `HttpRail`; pipeline runs unchanged against it | live settlement (funds) |
 | 4 M3 surface | ask page + `/ledger` + attestation viewer; prod build green | Vercel deploy + funds |
 | 5 M4 traction | ledger, team-vs-external metrics, fleet runner | real volume (funds) + Discord |

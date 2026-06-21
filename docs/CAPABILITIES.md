@@ -24,11 +24,17 @@ Each is the offline analogue of the upstream's pattern, settling through the sam
 | Multi-item order checkout | `POST /order`, `/order/{id}/checkout` | `arc-commerce` |
 | Approved-action workflow | `POST /workflow/approve`, `/{id}/execute` | `circle-ooak` |
 | Refund / dispute | `POST /refund/{tx}` | `refund-protocol` |
-| Structured + confidential memos | `GET /memos`, `/memo/{tx}` | `recibo` |
+| Structured + confidential + threaded memos | `GET /memos`, `/memo/{tx}/thread` | `recibo` |
 | Treasury + sweep | `GET /treasury`, `POST /treasury/sweep` | `arc-fintech` |
+| Recurring payment schedule | `POST /schedule`, `/schedule/{id}/run` | `arc-fintech` |
 | Gateway unified balance | `POST /gateway/deposit`, `/spend`, `GET /gateway/{wallet}` | `arc-multichain-wallet` |
+| Milestone escrow | `POST /escrow`, `/escrow/{id}/release` | `arc-escrow` |
 | ERC-8183 job escrow | `GET /job/{id}` (+ bond anchor) | `arc-escrow` |
+| Agent-tool manifest | `GET /agent/tools`, `/capabilities` | `agent-stack-starter-kits` |
 | Unified balance summary | `GET /balance`, `/status` `books` | (aggregates the above) |
+
+The full machine-readable index (with a copy-paste example per capability) is `GET /capabilities`;
+`make kitchen-sink` curls every primitive end-to-end and prints PASS/FAIL per capability (29 checks).
 
 ---
 
