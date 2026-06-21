@@ -305,6 +305,18 @@ def _sample_ported_round(seed: int) -> None:
     esc_tx = _settle_to(f"demo-escrow:{seed}", escrow.provider, milestone.amount, kind="escrow")
     if esc_tx is not None:
         _escrows.released(milestone, esc_tx)
+    # Multi-item order: bundle two line-items and check them out together.
+    order = _orders.create(
+        [
+            ("source author", w(seed + 14), Decimal("0.002")),
+            ("validator", w(seed + 15), Decimal("0.001")),
+        ]
+    )
+    _orders.begin_checkout(order.id)
+    for idx, item in enumerate(order.items):
+        ord_tx = _settle_to(f"demo-order:{seed}:{idx}", item.to, item.amount, kind="order")
+        if ord_tx is not None:
+            item.tx_hash = ord_tx
 
 
 def _embedder_status() -> dict[str, Any]:

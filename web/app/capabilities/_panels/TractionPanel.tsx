@@ -22,6 +22,7 @@ const KIND_LABEL: Record<string, string> = {
   deposit: "Gateway deposits",
   gateway_spend: "Gateway spends",
   escrow: "Milestone escrow",
+  order: "Order checkouts",
 };
 
 // Relative share of total volume for one kind — a horizontal bar (no time series exists,
@@ -144,6 +145,12 @@ export function TractionPanel() {
                 <div>
                   <span className="font-semibold text-gray-700">{bal.escrow.locked_usdc}</span>{" "}
                   <span className="text-xs text-gray-500">escrow locked ({bal.escrow.open} open)</span>
+                </div>
+              )}
+              {bal.orders && bal.orders.total > 0 && (
+                <div>
+                  <span className="font-semibold text-gray-700">{bal.orders.total}</span>{" "}
+                  <span className="text-xs text-gray-500">orders ({bal.orders.pending} pending)</span>
                 </div>
               )}
             </div>

@@ -151,6 +151,21 @@ AGENT_TOOLS: tuple[AgentTool, ...] = (
         ("client", "provider", "milestones"),
     ),
     AgentTool(
+        "create_order",
+        "Bundle several line-items paying different recipients into one order, then settle them "
+        "together at checkout. Use to pay multiple parties for one logical purchase.",
+        "POST",
+        "/order",
+        {
+            "items": {
+                "type": "array",
+                "description": "Each {description, to, amount} — a recipient and what they buy",
+                "items": {"type": "object"},
+            }
+        },
+        ("items",),
+    ),
+    AgentTool(
         "approve_workflow",
         "Approve a batch of settlement intents that then execute in order — nothing settles "
         "that wasn't approved. Use to plan and authorize a payment batch before executing it.",
