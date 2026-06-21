@@ -9,6 +9,7 @@ import { SendPanel } from "./_panels/SendPanel";
 import { PayoutPanel } from "./_panels/PayoutPanel";
 import { BondPanel } from "./_panels/BondPanel";
 import { StreamPanel } from "./_panels/StreamPanel";
+import { SchedulePanel } from "./_panels/SchedulePanel";
 import { RoyaltiesPanel } from "./_panels/RoyaltiesPanel";
 import { QfPanel } from "./_panels/QfPanel";
 import { RetroPanel } from "./_panels/RetroPanel";
@@ -65,6 +66,7 @@ export default function CapabilitiesPage() {
         <BondPanel />
         <EscrowPanel />
         <StreamPanel />
+        <SchedulePanel />
         <RoyaltiesPanel />
         <QfPanel />
         <RetroPanel />

@@ -266,6 +266,25 @@ export interface MemoThreadResponse {
   replies?: MemoItem[];
 }
 
+// Recurring payment schedule (arc-fintech).
+export interface ScheduleResponse {
+  found?: boolean;
+  id: string;
+  payer?: string;
+  payee?: string;
+  amount?: string;
+  total_runs?: number;
+  runs_done?: number;
+  runs_left?: number;
+  paid?: string;
+  remaining?: string;
+  status?: string;
+  tx_hashes?: string[];
+  ran?: boolean;
+  tx_hash?: string;
+  error?: string;
+}
+
 // Multi-item order (arc-commerce checkout).
 export interface OrderLineItem {
   description: string;

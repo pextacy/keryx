@@ -23,6 +23,7 @@ const KIND_LABEL: Record<string, string> = {
   gateway_spend: "Gateway spends",
   escrow: "Milestone escrow",
   order: "Order checkouts",
+  schedule: "Recurring schedules",
 };
 
 // Relative share of total volume for one kind — a horizontal bar (no time series exists,
