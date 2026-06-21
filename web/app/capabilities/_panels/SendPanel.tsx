@@ -10,6 +10,7 @@ export function SendPanel() {
   const [to, setTo] = useState("0x" + "a".repeat(40));
   const [amount, setAmount] = useState("0.01");
   const [memo, setMemo] = useState("grounded: https://example.com/post");
+  const [refundTo, setRefundTo] = useState("0x" + "9".repeat(40));
   const [res, setRes] = useState<SendResponse | null>(null);
   const [refunded, setRefunded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +21,7 @@ export function SendPanel() {
     setError(null);
     setRefunded(false);
     try {
-      setRes(await postJson<SendResponse>("/api/send", { to, amount, memo }));
+      setRes(await postJson<SendResponse>("/api/send", { to, amount, memo, refund_to: refundTo }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -31,7 +32,9 @@ export function SendPanel() {
   async function refund() {
     if (!res?.tx_hash) return;
     try {
-      const r = await postJson<{ refunded: boolean }>(`/api/refund/${res.tx_hash}`, { to });
+      const r = await postJson<{ refunded: boolean }>(`/api/refund/${res.tx_hash}`, {
+        reason: "requested",
+      });
       setRefunded(Boolean(r.refunded));
     } catch (err) {
       setError(errorMessage(err));
@@ -63,6 +66,15 @@ export function SendPanel() {
             onChange={(e) => setMemo(e.target.value)}
             className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
             placeholder="citation URL, attestation hash, job id…"
+          />
+        </Field>
+      </div>
+      <div className="mt-2">
+        <Field label="Refund to (bound at send — refund-protocol)">
+          <input
+            value={refundTo}
+            onChange={(e) => setRefundTo(e.target.value)}
+            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
           />
         </Field>
       </div>

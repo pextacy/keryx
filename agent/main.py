@@ -17,7 +17,7 @@ import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
 from eth_account import Account
 from fastapi import FastAPI, Request
@@ -835,12 +835,23 @@ class SendRequest(BaseModel):
     memo: str = Field(
         default="", max_length=280, description="Provenance memo travelling with the payment"
     )
+    refund_to: str = Field(
+        default="",
+        description="0x refund destination, bound at send time (circlefin/refund-protocol)",
+    )
 
     @field_validator("to")
     @classmethod
     def _check_wallet(cls, v: str) -> str:
         if not _HEX_WALLET.match(v):
             raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+    @field_validator("refund_to")
+    @classmethod
+    def _check_refund_to(cls, v: str) -> str:
+        if v and not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid refund_to: {v!r}")
         return v
 
 
@@ -854,7 +865,12 @@ def send(req: SendRequest) -> dict[str, Any]:
     if tx_hash is not None:
         if req.memo:
             _memos[tx_hash] = req.memo
-        _sends[tx_hash] = {"to": req.to, "amount": req.amount, "refunded": False}
+        _sends[tx_hash] = {
+            "to": req.to,
+            "amount": req.amount,
+            "refund_to": req.refund_to,
+            "refunded": False,
+        }
     return {
         "to": req.to,
         "amount": str(req.amount),
@@ -864,35 +880,51 @@ def send(req: SendRequest) -> dict[str, Any]:
     }
 
 
-class RefundRequest(BaseModel):
-    to: str = Field(description="0x wallet to refund (the disputing payer)")
+# Dispute reason codes (a small taxonomy over circlefin/refund-protocol's generic refund).
+RefundReason = Literal["requested", "not_delivered", "duplicate", "fraud", "other"]
 
-    @field_validator("to")
+
+class RefundRequest(BaseModel):
+    reason: RefundReason = Field(default="requested", description="Why the payment is disputed")
+    by: Literal["recipient", "arbiter"] = Field(
+        default="recipient", description="Who initiated the refund (refund-protocol roles)"
+    )
+    refund_to: str = Field(
+        default="", description="Override refund destination (only if none was bound at send)"
+    )
+
+    @field_validator("refund_to")
     @classmethod
-    def _check_wallet(cls, v: str) -> str:
-        if not _HEX_WALLET.match(v):
-            raise ValueError(f"invalid wallet: {v!r}")
+    def _check_refund_to(cls, v: str) -> str:
+        if v and not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid refund_to: {v!r}")
         return v
 
 
 @app.post("/refund/{tx_hash}", tags=["primitives"])
 def refund(tx_hash: str, req: RefundRequest) -> dict[str, Any]:
-    """Refund a send (dispute resolution) — settle the amount back to ``to`` (inspired by
-    circlefin/refund-protocol). Idempotency-guarded: a send refunds at most once."""
+    """Refund/dispute a send — settle the amount to the bound ``refund_to`` (ported from
+    circlefin/refund-protocol: the refund destination is set at pay time, refundable by the
+    recipient or an arbiter). Carries a dispute reason; idempotency-guarded (refunds once)."""
     record = _sends.get(tx_hash)
     if record is None:
         return {"found": False, "tx_hash": tx_hash}
     if record["refunded"]:
         return {"error": "already_refunded", "tx_hash": tx_hash}
-    refund_tx = _settle_to(f"refund:{tx_hash}", req.to, record["amount"], kind="refund")
+    destination = record["refund_to"] or req.refund_to
+    if not destination:
+        return {"error": "no_refund_address", "tx_hash": tx_hash}
+    refund_tx = _settle_to(f"refund:{tx_hash}", destination, record["amount"], kind="refund")
     if refund_tx is not None:
         record["refunded"] = True
-        _memos[refund_tx] = f"refund of {tx_hash}"
+        _memos[refund_tx] = f"refund ({req.reason}, by {req.by}) of {tx_hash}"
     return {
         "refunded": refund_tx is not None,
         "original_tx": tx_hash,
         "amount": str(record["amount"]),
-        "to": req.to,
+        "refund_to": destination,
+        "reason": req.reason,
+        "by": req.by,
         "refund_tx": refund_tx,
     }
 
