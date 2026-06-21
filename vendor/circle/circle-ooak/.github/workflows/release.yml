@@ -1,0 +1,87 @@
+name: Main Pipeline
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+  issues: write
+  id-token: write
+
+jobs:
+  test:
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/release-test.yml
+
+  release-please:
+    if: github.event_name == 'push'
+    uses: circlefin/circle-public-github-workflows/.github/workflows/conventional-commit-release.yaml@v1
+    with:
+      release_type: python
+      additional_unqualified_tags: true
+      extra_tags: stable
+    secrets:
+      RELEASE_TOKEN: ${{ secrets.PUBLIC_RELEASES_TOKEN }}
+      RELEASE_ACTOR_GPG_PRIVATE_KEY: ${{ secrets.PUBLIC_RELEASES_GPG_PRIVATE_KEY }}
+      RELEASE_ACTOR_GPG_PASSPHRASE: ${{ secrets.PUBLIC_RELEASES_GPG_PASSPHRASE }}
+      RELEASE_ACTOR_GPG_KEY_FINGERPRINT: ${{ secrets.PUBLIC_RELEASES_GPG_FINGERPRINT }}
+
+  pypi-publish:
+    name: Publish to PyPI
+    if: needs.release-please.outputs.release_created == 'true'
+    needs: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
+        with:
+          egress-policy: block
+          policy: global-allowed-endpoints-policy
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
+          
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build twine
+          
+      - name: Build package
+        run: python -m build
+        
+      - name: Check distribution
+        run: twine check dist/*
+        
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
+
+      - name: Upload build artifacts for release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  github-release:
+    name: Create GitHub Release with Assets
+    if: needs.release-please.outputs.release_created == 'true'
+    needs: [release-please, pypi-publish]
+    uses: circlefin/circle-public-github-workflows/.github/workflows/attach-release-assets.yaml@v1
+    with:
+      release_tag: ${{ needs.release-please.outputs.release_tag }}
+      artifact_file_globs: |
+        *.whl
+        *.tar.gz
+      create_manifest: true
+      generate_sbom: true

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, postJson } from "@/lib/api";
 import type { StreamResponse } from "@/lib/capabilities";
 import { Card, ErrorNote, Field } from "./Card";
@@ -13,6 +13,8 @@ export function StreamPanel() {
   const [stream, setStream] = useState<StreamResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [live, setLive] = useState(false);
+  const streamId = stream?.stream_id ?? null;
 
   async function run(fn: () => Promise<StreamResponse>) {
     setBusy(true);
@@ -30,10 +32,33 @@ export function StreamPanel() {
 
   const action = (a: "tick" | "pause" | "resume" | "close") => {
     if (!stream) return;
+    if (a === "close") setLive(false);
     const id = encodeURIComponent(stream.stream_id);
     const body = a === "tick" ? { seconds } : {};
     void run(() => postJson<StreamResponse>(`/api/stream/${id}/${a}`, body));
   };
+
+  // Live meter: tick 1 second of flow every second while "live" is on.
+  const tickOnce = useCallback(async () => {
+    if (!streamId) return;
+    try {
+      const next = await postJson<StreamResponse>(`/api/stream/${encodeURIComponent(streamId)}/tick`, {
+        seconds: "1",
+      });
+      setStream(next);
+    } catch (err) {
+      setError(errorMessage(err));
+      setLive(false);
+    }
+  }, [streamId]);
+
+  const liveRef = useRef(tickOnce);
+  liveRef.current = tickOnce;
+  useEffect(() => {
+    if (!live || !streamId) return;
+    const handle = setInterval(() => void liveRef.current(), 1000);
+    return () => clearInterval(handle);
+  }, [live, streamId]);
 
   return (
     <Card title="Streaming" subtitle="Pay-per-second flow, billed live with no dust (RFB 4)">
@@ -83,6 +108,14 @@ export function StreamPanel() {
         </button>
         <button type="button" onClick={() => action("close")} disabled={busy || !stream} className="rounded border px-3 py-1.5 disabled:opacity-40">
           Close
+        </button>
+        <button
+          type="button"
+          onClick={() => setLive((v) => !v)}
+          disabled={!stream}
+          className={`rounded px-3 py-1.5 disabled:opacity-40 ${live ? "bg-green-600 text-white" : "border"}`}
+        >
+          {live ? "● Live" : "Go live (1/s)"}
         </button>
       </div>
 

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { errorMessage, postJson } from "@/lib/api";
-import { ARC_EXPLORER_TX } from "@/lib/types";
 import type { PayoutResponse } from "@/lib/capabilities";
+import { useToast } from "@/app/Toast";
 import { Card, ErrorNote, Field } from "./Card";
+import { TxLink } from "./TxLink";
 
 interface Row {
   wallet: string;
@@ -18,6 +19,7 @@ const SEED: Row[] = [
 ];
 
 export function PayoutPanel() {
+  const { toast, notify } = useToast();
   const [amount, setAmount] = useState("0.01");
   const [rows, setRows] = useState<Row[]>(SEED);
   const [res, setRes] = useState<PayoutResponse | null>(null);
@@ -36,7 +38,10 @@ export function PayoutPanel() {
         amount,
         contributors: rows.map((r) => ({ wallet: r.wallet, share: r.share })),
       };
-      setRes(await postJson<PayoutResponse>("/api/payout", body));
+      const r = await postJson<PayoutResponse>("/api/payout", body);
+      setRes(r);
+      const firstTx = r.recipients.find((x) => x.tx_hash)?.tx_hash ?? null;
+      notify(`Split ${r.total_settled} USDC to ${r.recipients.length}`, firstTx);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -105,11 +110,7 @@ export function PayoutPanel() {
               <span className="truncate">{r.wallet.slice(0, 12)}… · share {r.share}</span>
               <span className="flex items-center gap-2">
                 <span className="text-green-700">{r.amount}</span>
-                {r.tx_hash && (
-                  <a href={ARC_EXPLORER_TX + r.tx_hash} target="_blank" className="text-blue-600 underline">
-                    tx
-                  </a>
-                )}
+                {r.tx_hash && <TxLink hash={r.tx_hash} prefix="tx" chars={0} />}
               </span>
             </li>
           ))}
@@ -119,6 +120,7 @@ export function PayoutPanel() {
           </li>
         </ul>
       )}
+      {toast}
     </Card>
   );
 }

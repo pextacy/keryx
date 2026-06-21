@@ -10,8 +10,13 @@ In-memory, append-only counters; mirrors chain when the real rail is live.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from decimal import Decimal
+
+# How many recent settlements to retain for the /history feed (bounded — aggregates are
+# canonical; this is a rolling window for the dashboard).
+_HISTORY_CAP = 500
 
 
 @dataclass
@@ -20,19 +25,73 @@ class KindStat:
     volume: Decimal = Decimal(0)
 
 
+@dataclass(frozen=True)
+class Settlement:
+    """One settled payment in the recent-history window."""
+
+    seq: int
+    kind: str
+    amount: Decimal
+    wallet: str
+    tx_hash: str | None
+
+
 @dataclass
 class TractionBook:
-    """Per-primitive settled-volume counters."""
+    """Per-primitive settled-volume counters plus a rolling recent-settlements log."""
 
     _by_kind: dict[str, KindStat] = field(default_factory=dict)
+    _history: deque[Settlement] = field(default_factory=lambda: deque(maxlen=_HISTORY_CAP))
+    _seq: int = 0
 
-    def record(self, kind: str, amount: Decimal) -> None:
-        """Record one settled payment of ``amount`` under ``kind`` (no-op for amount <= 0)."""
+    def record(
+        self, kind: str, amount: Decimal, wallet: str = "", tx_hash: str | None = None
+    ) -> None:
+        """Record one settled payment of ``amount`` under ``kind`` (no-op for amount <= 0).
+
+        Also appends to the bounded recent-settlements log (the /history feed)."""
         if amount <= 0:
             return
         stat = self._by_kind.setdefault(kind, KindStat())
         stat.count += 1
         stat.volume += amount
+        self._seq += 1
+        self._history.append(
+            Settlement(seq=self._seq, kind=kind, amount=amount, wallet=wallet, tx_hash=tx_hash)
+        )
+
+    def recent_by_kind(self) -> list[dict[str, object]]:
+        """Per-kind {count, volume} over the recent-history window (most active first).
+
+        Distinct from ``summary()`` (all-time aggregates): this rolls up only the rolling
+        window the /history feed shows, so the breakdown matches the visible activity."""
+        rollup: dict[str, KindStat] = {}
+        for s in self._history:
+            stat = rollup.setdefault(s.kind, KindStat())
+            stat.count += 1
+            stat.volume += s.amount
+        ordered = sorted(rollup.items(), key=lambda kv: kv[1].count, reverse=True)
+        return [{"kind": k, "count": v.count, "volume_usdc": str(v.volume)} for k, v in ordered]
+
+    def recent(self, limit: int = 50, kind: str = "") -> list[dict[str, object]]:
+        """Recent settlements (most recent first), optionally filtered by ``kind``."""
+        items = reversed(self._history)
+        out: list[dict[str, object]] = []
+        for s in items:
+            if kind and s.kind != kind:
+                continue
+            out.append(
+                {
+                    "seq": s.seq,
+                    "kind": s.kind,
+                    "amount": str(s.amount),
+                    "wallet": s.wallet,
+                    "tx_hash": s.tx_hash,
+                }
+            )
+            if len(out) >= max(0, limit):
+                break
+        return out
 
     def summary(self) -> dict[str, object]:
         total_volume = sum((s.volume for s in self._by_kind.values()), Decimal(0))

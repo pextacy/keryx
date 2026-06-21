@@ -1,16 +1,6 @@
-import { NextResponse } from "next/server";
+import { proxyGet } from "@/lib/proxy";
 
-const AGENT_URL = process.env.AGENT_URL ?? "http://127.0.0.1:8000";
-
-export async function GET() {
-  try {
-    const resp = await fetch(`${AGENT_URL}/ledger`, { cache: "no-store" });
-    const data = await resp.json();
-    return NextResponse.json(data, { status: resp.status });
-  } catch (err) {
-    return NextResponse.json(
-      { error: "agent unreachable", message: (err as Error).message },
-      { status: 502 },
-    );
-  }
+export async function GET(req: Request) {
+  const limit = new URL(req.url).searchParams.get("limit");
+  return proxyGet(`/ledger${limit ? `?limit=${encodeURIComponent(limit)}` : ""}`);
 }

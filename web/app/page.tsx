@@ -1,15 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ARC_EXPLORER_TX, type AskResponse } from "@/lib/types";
+import { Copy } from "./Copy";
+
+type Activity = { settlements: number; volume_usdc: string };
+type Settlement = { seq: number; kind: string; amount: string };
 
 export default function Home() {
+  const [activity, setActivity] = useState<Activity | null>(null);
+  const [recent, setRecent] = useState<Settlement[]>([]);
+
+  useEffect(() => {
+    fetch("/api/healthz", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => b?.activity && setActivity(b.activity))
+      .catch(() => {});
+    fetch("/api/history?limit=3", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => b?.settlements && setRecent(b.settlements))
+      .catch(() => {});
+  }, []);
+
   const [query, setQuery] = useState(
     "How do Gateway nanopayments settle sub-cent USDC on Arc?",
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [res, setRes] = useState<AskResponse | null>(null);
+  const [tipped, setTipped] = useState<Record<string, string>>({});
+
+  async function tip(sourceUrl: string, wallet: string) {
+    try {
+      const r = await fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: wallet, amount: "0.001", memo: `tip: ${sourceUrl}` }),
+      });
+      const data = await r.json();
+      if (data.tx_hash) setTipped((p) => ({ ...p, [sourceUrl]: data.tx_hash }));
+    } catch {
+      // best-effort tip; ignore
+    }
+  }
 
   async function ask(e: React.FormEvent) {
     e.preventDefault();
@@ -37,15 +70,49 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-3xl p-8">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-3xl font-semibold">Keryx</h1>
-        <a href="/capabilities" className="text-sm text-blue-600 underline">
-          Capabilities →
+      <h1 className="text-3xl font-semibold">Keryx</h1>
+      <p className="mt-1 text-gray-500">
+        Your work earns every time an agent cites it. Ask a question; the agent pays every
+        source it genuinely cites — sub-cent USDC, live on Arc, pay-on-citation not pay-on-fetch.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-3 text-sm">
+        <a href="/capabilities" className="text-blue-600 underline">
+          Nanopayment capabilities →
+        </a>
+        <a href="/ledger" className="text-blue-600 underline">
+          Live ledger
+        </a>
+        <a href="/audit" className="text-blue-600 underline">
+          Audit an attestation
         </a>
       </div>
-      <p className="mt-1 text-gray-500">
-        Ask a question. Watch the agent pay every source it genuinely cites — live on Arc.
-      </p>
+
+      {activity && (
+        <div className="mt-4 flex gap-6 rounded-lg border border-gray-200 p-3">
+          <div>
+            <div className="text-xl font-semibold text-green-700">
+              {activity.volume_usdc} <span className="text-sm font-normal text-gray-500">USDC</span>
+            </div>
+            <div className="text-xs text-gray-500">settled across every primitive</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{activity.settlements}</div>
+            <div className="text-xs text-gray-500">payments</div>
+          </div>
+          {recent.length > 0 && (
+            <div className="ml-auto text-right">
+              <div className="text-xs text-gray-400">recent</div>
+              <div className="space-y-0.5">
+                {recent.map((s) => (
+                  <div key={s.seq} className="font-mono text-[11px] text-gray-600">
+                    {s.kind} <span className="text-green-700">{s.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <form onSubmit={ask} className="mt-6 flex gap-2">
         <input
@@ -99,6 +166,24 @@ export default function Home() {
                         tx
                       </a>
                     )}
+                    {c.author_wallet &&
+                      (tipped[c.source_url] ? (
+                        <a
+                          href={ARC_EXPLORER_TX + tipped[c.source_url]}
+                          target="_blank"
+                          className="text-purple-600 underline"
+                        >
+                          tipped ✓
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => tip(c.source_url, c.author_wallet as string)}
+                          className="rounded border border-purple-300 px-1.5 text-xs text-purple-700"
+                        >
+                          tip $0.001
+                        </button>
+                      ))}
                   </span>
                 </li>
               ))}
@@ -134,10 +219,22 @@ export default function Home() {
               </span>
             </div>
             <dl className="mt-2 space-y-1 font-mono text-xs text-gray-600">
-              <div>agent: {res.attestation.agent_pubkey}</div>
-              <div>query_hash: {res.attestation.query_hash}</div>
-              <div>answer_hash: {res.attestation.answer_hash}</div>
+              <div className="flex items-center gap-1">
+                agent: {res.attestation.agent_pubkey}
+                <Copy text={res.attestation.agent_pubkey} />
+              </div>
+              <div className="flex items-center gap-1">
+                query_hash: {res.attestation.query_hash}
+                <Copy text={res.attestation.query_hash} />
+              </div>
+              <div className="flex items-center gap-1">
+                answer_hash: {res.attestation.answer_hash}
+                <Copy text={res.attestation.answer_hash} />
+              </div>
             </dl>
+            <a href="/audit" className="mt-2 inline-block text-xs text-blue-600 underline">
+              Verify this attestation independently →
+            </a>
           </div>
         </section>
       )}

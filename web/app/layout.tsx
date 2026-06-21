@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Nav } from "./Nav";
 
 export const metadata: Metadata = {
-  title: "Keryx — citation-toll layer for the agent web",
+  title: {
+    default: "Keryx — citation-toll layer for the agent web",
+    template: "%s · Keryx",
+  },
   description:
-    "Ask a question; watch a research agent pay every source it genuinely cites, live on Arc.",
+    "Your work earns every time an agent cites it. A research agent pays every source it " +
+    "genuinely cites — sub-cent USDC, live on Arc, pay-on-citation not pay-on-fetch.",
+  openGraph: {
+    title: "Keryx — citation-toll layer for the agent web",
+    description: "A research agent pays every source it genuinely cites, live on Arc.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -14,7 +24,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Nav />
+        {children}
+      </body>
     </html>
   );
 }

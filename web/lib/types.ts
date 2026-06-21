@@ -6,6 +6,7 @@ export interface Citation {
   amount: string;
   tx_hash: string | null;
   cited: boolean;
+  author_wallet?: string | null;
 }
 
 export interface Attestation {

@@ -51,11 +51,34 @@ splits (every payout sums to the input down to the micro-USDC, never overpaying)
 | Streaming | `POST /stream`, `…/tick` | pay-per-second flow, billed live with fractional carry |
 | User royalties | `POST /royalties` | a listener's budget pays only who they played, with play-gating |
 | Quadratic funding | `POST /qf` | match a pool by breadth `(Σ√c)²` — many small backers beat one big |
-| Traction | `GET /traction` | settled volume rolled up across every primitive |
+| Traction | `GET /traction`, `/history` | settled volume rolled up + a unified recent-settlements feed |
 | On-chain (opt-in) | `GET /identity`, `/job/{id}`, `/validation/{h}` | ERC-8004 identity/reputation/validation + ERC-8183 job escrow |
+
+**Ported from Circle's open-source Arc repos** (vendored under `vendor/circle/`, see [`NOTICE`](NOTICE)) —
+each the offline analogue of the upstream, settling through the same rail:
+
+| Capability | Endpoint | Ported from |
+| --- | --- | --- |
+| Stablecoin swap | `POST /swap` | `arc-stablecoin-fx` |
+| Split-bill request | `POST /request`, `…/fulfil` | `arc-p2p-payments` |
+| Prepaid credits + tiers | `POST /credits/topup`, `GET /credits/tiers` | `arc-commerce` |
+| Multi-item order checkout | `POST /order`, `…/checkout` | `arc-commerce` |
+| Approved-action workflow | `POST /workflow/approve`, `…/execute` | `circle-ooak` |
+| Refund / dispute | `POST /refund/{tx}` | `refund-protocol` |
+| Structured + confidential + threaded memos | `GET /memos`, `/memo/{tx}/thread` | `recibo` |
+| Treasury + sweep | `GET /treasury`, `POST /treasury/sweep` | `arc-fintech` |
+| Gateway unified balance | `POST /gateway/deposit`, `…/spend` | `arc-multichain-wallet` |
+| Milestone escrow | `POST /escrow`, `…/release` | `arc-escrow` |
+| Recurring schedule | `POST /schedule`, `…/run` | `arc-fintech` |
+| Agent-tool manifest | `GET /agent/tools`, `/capabilities` | `agent-stack-starter-kits` |
+
+Keryx is **agent-callable**: `GET /agent/tools` returns its primitives as tool-use schemas
+(Claude Agent SDK / OpenAI function-calling), and `GET /capabilities` indexes all 21 with
+their provenance.
 
 ```bash
 make capabilities-demo    # boots the agent, drives every primitive, prints rolled-up /traction
+make kitchen-sink         # curls every primitive end-to-end, PASS/FAIL per capability (29 checks)
 ```
 
 Full reference with copy-paste `curl` for each: [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
@@ -70,7 +93,7 @@ python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env                  # optional; sane defaults built in
 
-pytest                                # 41 tests (contract, grounding, LLM judge/answerer, attestation, pipeline, ledger)
+pytest                                # 219 tests (contract, grounding, LLM judge/answerer, attestation, pipeline, ledger, primitives)
 uvicorn agent.main:app --reload       # CC-B -> http://127.0.0.1:8000
 
 # Ask a question (full citation loop against the mock rail):
@@ -82,9 +105,21 @@ curl -s localhost:8000/metrics | jq
 python -m agent.fleet --n 20
 ```
 
-Agent endpoints: `POST /ask`, `GET /ledger`, `GET /metrics`, `GET /traction`, `GET /config`,
-`GET /healthz`, plus the nanopayment primitives above (`/payout`, `/bond`, `/stream`,
-`/royalties`, `/qf`) and opt-in on-chain reads — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
+Agent endpoints: `POST /ask`, `GET /ledger`, `GET /metrics`, `GET /traction`, `GET /history`,
+`GET /balance`, `GET /config`, `GET /healthz`, `GET /capabilities`, `GET /agent/tools`, plus
+every nanopayment primitive above (`/payout`, `/bond`, `/stream`, `/schedule`, `/royalties`,
+`/qf`, `/retro`) and the Circle ports (`/send`, `/swap`, `/request`, `/credits/*`, `/order`,
+`/escrow`, `/gateway/*`, `/treasury`, `/workflow/*`, `/refund/{tx}`, `/memos`) and opt-in
+on-chain reads — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
+
+## Verify
+
+```bash
+make check          # gates: ruff lint + mypy --strict + pytest (219 passing)
+make kitchen-sink   # boots the agent and curls every primitive end-to-end, PASS/FAIL per
+                    # capability (29 checks) — the one-command "does it all work" proof
+make verify         # both of the above, in order (static gates then end-to-end)
+```
 
 ## Quickstart (web surface)
 
@@ -143,7 +178,7 @@ Circle faucet (your authentication) — see `SETUP.md`.
 | --- | --- | --- |
 | 0 Foundation | scaffold, frozen contract, Neon schema, CI, licensing | — ✅ |
 | 1 M0 rail spike | verified signatures, runnable spike, seller emits correct 402 | funded tx (faucet) |
-| 2 M1 agent | grounding moat (Claude judge + answerer, heuristic fallback) + attestation + `/ask` + registry (41 tests) | — ✅ |
+| 2 M1 agent | grounding moat (Claude judge + answerer, heuristic fallback) + attestation + `/ask` + registry | — ✅ |
 | 3 M2 integration | TS payer bridge + `HttpRail`; pipeline runs unchanged against it | live settlement (funds) |
 | 4 M3 surface | ask page + `/ledger` + attestation viewer; prod build green | Vercel deploy + funds |
 | 5 M4 traction | ledger, team-vs-external metrics, fleet runner | real volume (funds) + Discord |
