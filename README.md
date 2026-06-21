@@ -62,6 +62,7 @@ each the offline analogue of the upstream, settling through the same rail:
 | Stablecoin swap | `POST /swap` | `arc-stablecoin-fx` |
 | Split-bill request | `POST /request`, `…/fulfil` | `arc-p2p-payments` |
 | Prepaid credits + tiers | `POST /credits/topup`, `GET /credits/tiers` | `arc-commerce` |
+| Multi-item order checkout | `POST /order`, `…/checkout` | `arc-commerce` |
 | Approved-action workflow | `POST /workflow/approve`, `…/execute` | `circle-ooak` |
 | Refund / dispute | `POST /refund/{tx}` | `refund-protocol` |
 | Structured + confidential + threaded memos | `GET /memos`, `/memo/{tx}/thread` | `recibo` |
@@ -71,7 +72,7 @@ each the offline analogue of the upstream, settling through the same rail:
 | Agent-tool manifest | `GET /agent/tools`, `/capabilities` | `agent-stack-starter-kits` |
 
 Keryx is **agent-callable**: `GET /agent/tools` returns its primitives as tool-use schemas
-(Claude Agent SDK / OpenAI function-calling), and `GET /capabilities` indexes all 19 with
+(Claude Agent SDK / OpenAI function-calling), and `GET /capabilities` indexes all 20 with
 their provenance.
 
 ```bash

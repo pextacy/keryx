@@ -21,6 +21,7 @@ Each is the offline analogue of the upstream's pattern, settling through the sam
 | Stablecoin swap (USDC↔EURC) | `POST /swap/quote`, `/swap` | `arc-stablecoin-fx` |
 | Split-bill money request | `POST /request`, `/request/{id}/fulfil` | `arc-p2p-payments` |
 | Prepaid credits + tiers | `POST /credits/topup`, `/spend`, `GET /credits/tiers` | `arc-commerce` |
+| Multi-item order checkout | `POST /order`, `/order/{id}/checkout` | `arc-commerce` |
 | Approved-action workflow | `POST /workflow/approve`, `/{id}/execute` | `circle-ooak` |
 | Refund / dispute | `POST /refund/{tx}` | `refund-protocol` |
 | Structured + confidential memos | `GET /memos`, `/memo/{tx}` | `recibo` |
@@ -256,6 +257,21 @@ curl -s localhost:8000/credits/topup -H 'content-type: application/json' -d '{"w
 # -> {"topped_up":true,"paid_usdc":"0.10","credited":"0.110000","balance":"0.110000",...}
 ```
 
+## Multi-item order — bundle line-items, settle at checkout (arc-commerce)
+
+Bundle line-items paying different recipients (e.g. a research bundle: source author +
+validator + indexer) into one order, then settle them together at checkout — the
+multi-recipient generalisation of arc-commerce's USDC checkout.
+
+```bash
+OID=$(curl -s localhost:8000/order -H 'content-type: application/json' -d '{
+  "items":[{"description":"source author","to":"0xa...a","amount":"0.003"},
+           {"description":"validator","to":"0xb...b","amount":"0.002"}]
+}' | jq -r .id)
+curl -s localhost:8000/order/$OID/checkout   # settles every line; status "paid" or "partial"
+curl -s localhost:8000/order/$OID            # -> {"total":"0.005000","paid":"0.005000","items":[...]}
+```
+
 ## Gateway unified balance — deposit cross-chain, spend on Arc (arc-multichain-wallet)
 
 Deposit USDC from several source chains (`arcTestnet`, `avalancheFuji`, `baseSepolia`) into one
@@ -312,7 +328,7 @@ and invoke Keryx with JSON — the `circlefin/agent-stack-starter-kits` idea.
 
 ```bash
 curl -s localhost:8000/capabilities | jq '{count, ported, by_category}'
-# -> {"count":19,"ported":12,"by_category":{"split":4,"settlement":7,...}}
+# -> {"count":20,"ported":13,"by_category":{"split":4,"settlement":8,...}}
 curl -s localhost:8000/agent/tools | jq '.tools[].name'   # ask, send_payment, swap_stablecoin, ...
 ```
 
