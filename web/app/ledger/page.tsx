@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ARC_EXPLORER_TX } from "@/lib/types";
+import { Copy } from "../Copy";
 
 interface Metrics {
   total_settled_usdc: string;
@@ -26,7 +27,12 @@ export default function LedgerPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [chainVerified, setChainVerified] = useState(false);
+  const [filter, setFilter] = useState<"all" | "team" | "external">("all");
   const [error, setError] = useState<string | null>(null);
+
+  const shown = rows.filter(
+    (r) => filter === "all" || (filter === "external" ? r.external : !r.external),
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -59,15 +65,27 @@ export default function LedgerPage() {
       <p className="mt-1 text-sm text-gray-500">
         Mirrors on-chain settlement — chain is canonical. Team vs external volume labeled.
       </p>
-      {rows.length > 0 && (
-        <button
-          type="button"
-          onClick={() => downloadCsv(rows)}
-          className="mt-3 rounded border px-3 py-1.5 text-sm"
-        >
-          Download CSV
-        </button>
-      )}
+      <div className="mt-3 flex items-center gap-2">
+        {(["all", "team", "external"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => setFilter(f)}
+            className={`rounded px-3 py-1.5 text-sm ${filter === f ? "bg-black text-white" : "border"}`}
+          >
+            {f}
+          </button>
+        ))}
+        {rows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => downloadCsv(shown)}
+            className="ml-auto rounded border px-3 py-1.5 text-sm"
+          >
+            Download CSV
+          </button>
+        )}
+      </div>
       {error && <p className="mt-4 rounded bg-red-50 p-3 text-red-700">{error}</p>}
 
       {metrics && (
@@ -91,7 +109,7 @@ export default function LedgerPage() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
+          {shown.map((r) => (
             <tr key={r.tx_hash + r.source_url} className="border-t border-gray-100">
               <td className="py-2">{r.source_url}</td>
               <td className="font-mono">{r.g.toFixed(2)}</td>
@@ -102,7 +120,7 @@ export default function LedgerPage() {
                 </span>
               </td>
               <td className="text-gray-400">{ago(r.ts)}</td>
-              <td>
+              <td className="flex items-center gap-1 py-2">
                 <a
                   href={ARC_EXPLORER_TX + r.tx_hash}
                   target="_blank"
@@ -110,13 +128,16 @@ export default function LedgerPage() {
                 >
                   {r.tx_hash.slice(0, 10)}…
                 </a>
+                <Copy text={r.tx_hash} />
               </td>
             </tr>
           ))}
-          {rows.length === 0 && (
+          {shown.length === 0 && (
             <tr>
               <td colSpan={6} className="py-6 text-center text-gray-400">
-                No settlements yet — ask a question on the home page.
+                {rows.length === 0
+                  ? "No settlements yet — ask a question on the home page."
+                  : `No ${filter} settlements.`}
               </td>
             </tr>
           )}
