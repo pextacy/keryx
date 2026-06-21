@@ -1308,6 +1308,18 @@ def credits_balance(wallet: str) -> dict[str, Any]:
     return {"found": True, **_credit_view(acct)}
 
 
+@app.get("/balance", tags=["ledger-ops"])
+def balance() -> dict[str, Any]:
+    """Unified balance — one aggregated view of the agent's economic state across every book
+    (ported from circlefin/arc-multichain-wallet's unified-balance UX). Rolls up settled
+    volume, prepaid credits outstanding, and open split-bill requests into a single summary."""
+    return {
+        "settled": traction.summary(),
+        "credits": _credits.summary(),
+        "requests": _requests.summary(),
+    }
+
+
 def _memo_item(tx_hash: str) -> dict[str, Any]:
     """A receipt: the tx, its one-line memo, and the structured recibo envelope (if any)."""
     return {"tx_hash": tx_hash, "memo": _memos.get(tx_hash), "meta": _memo_meta.get(tx_hash)}

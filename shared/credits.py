@@ -66,6 +66,11 @@ class CreditBook:
     def get(self, wallet: str) -> CreditAccount | None:
         return self._accounts.get(wallet)
 
+    def summary(self) -> dict[str, object]:
+        """Aggregate prepaid position: total credits held and how many accounts hold them."""
+        total = sum((a.balance for a in self._accounts.values()), Decimal(0))
+        return {"accounts": len(self._accounts), "outstanding_usdc": str(_q(total))}
+
     def credit(self, wallet: str, amount: Decimal, tx_hash: str) -> CreditAccount:
         """Add prepaid credits after a successful top-up settlement (tx already settled)."""
         if amount <= 0:

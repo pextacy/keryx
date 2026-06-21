@@ -88,6 +88,17 @@ class RequestBook:
     def get(self, rid: str) -> PaymentRequest | None:
         return self._requests.get(rid)
 
+    def summary(self) -> dict[str, object]:
+        """Aggregate request position: open count and the total still outstanding."""
+        reqs = self._requests.values()
+        open_reqs = [r for r in reqs if r.status is RequestStatus.OPEN]
+        outstanding = sum((r.outstanding() for r in open_reqs), Decimal(0))
+        return {
+            "total": len(self._requests),
+            "open": len(open_reqs),
+            "outstanding_usdc": str(outstanding),
+        }
+
     def fulfil(self, rid: str, payer: str) -> Share:
         """Mark a payer's share as the next to settle. Raises if unknown or already paid.
 
