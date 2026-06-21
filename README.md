@@ -112,6 +112,14 @@ every nanopayment primitive above (`/payout`, `/bond`, `/stream`, `/schedule`, `
 `/escrow`, `/gateway/*`, `/treasury`, `/workflow/*`, `/refund/{tx}`, `/memos`) and opt-in
 on-chain reads — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
 
+## Verify
+
+```bash
+make check          # gates: ruff lint + mypy --strict + pytest (219 passing)
+make kitchen-sink   # boots the agent and curls every primitive end-to-end, PASS/FAIL per
+                    # capability (29 checks) — the one-command "does it all work" proof
+```
+
 ## Quickstart (web surface)
 
 ```bash
