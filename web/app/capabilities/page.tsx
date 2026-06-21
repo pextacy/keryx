@@ -10,6 +10,7 @@ import { RoyaltiesPanel } from "./_panels/RoyaltiesPanel";
 import { QfPanel } from "./_panels/QfPanel";
 import { RetroPanel } from "./_panels/RetroPanel";
 import { OnchainPanel } from "./_panels/OnchainPanel";
+import { JobEscrowPanel } from "./_panels/JobEscrowPanel";
 
 export default function CapabilitiesPage() {
   return (
@@ -40,6 +41,7 @@ export default function CapabilitiesPage() {
         <QfPanel />
         <RetroPanel />
         <OnchainPanel />
+        <JobEscrowPanel />
       </div>
     </main>
   );

@@ -122,7 +122,9 @@ export interface JobResponse {
   evaluator?: string;
   description?: string;
   budget_usdc?: string;
+  expired_at?: number;
   status?: string;
+  hook?: string;
   error?: string;
 }
 
