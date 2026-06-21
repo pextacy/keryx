@@ -37,3 +37,18 @@ Additional upstreams pulled at later phases (attribution added on vendoring):
 
 Verify each LICENSE the moment it is cloned — it is a 5-second check that ships in
 the submitted repo (docs.md).
+
+--------------------------------------------------------------------------------
+Circle (github.com/circlefin) repos vendored in-tree under vendor/circle/ (their .git
+removed; each keeps its own LICENSE — mostly Apache-2.0). See vendor/circle/README.md.
+   - circlefin/arc-nanopayments         (Apache-2.0) — rail base (x402 + Gateway)
+   - circlefin/arc-escrow               (Apache-2.0) — escrow workflow (ERC-8183 bonds)
+   - circlefin/arc-stablecoin-fx        (Apache-2.0) — USDC<->EURC swap (App Kit)
+   - circlefin/arc-p2p-payments         (Apache-2.0) — gasless P2P payments
+   - circlefin/arc-commerce             (Apache-2.0) — USDC checkout/credits
+   - circlefin/arc-multichain-wallet    (Apache-2.0) — unified balance + Gateway
+   - circlefin/arc-fintech              (Apache-2.0) — multichain treasury
+   - circlefin/recibo                   (Apache-2.0) — encrypted ERC-20 memos (our /send memo)
+   - circlefin/refund-protocol          (Apache-2.0) — stablecoin disputes (our /refund)
+   - circlefin/circle-ooak              (Apache-2.0) — Object-Oriented Agent Kit (Python)
+   - circlefin/agent-stack-starter-kits (Apache-2.0) — Circle Agent Stack examples
