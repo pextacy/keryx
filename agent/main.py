@@ -202,7 +202,7 @@ def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> st
     receipts = rail.settle([intent])
     rc = receipts[0] if receipts else None
     if rc is not None and rc.status is SettlementStatus.SETTLED:
-        traction.record(kind, amount)
+        traction.record(kind, amount, wallet=wallet, tx_hash=rc.tx_hash)
         return rc.tx_hash
     return None
 
@@ -1786,6 +1786,15 @@ def list_memos(limit: int = 20, kind: str = "") -> dict[str, Any]:
 def get_traction() -> dict[str, Any]:
     """Settled volume rolled up across every primitive — the traction story in one call."""
     return traction.summary()
+
+
+@app.get("/history", tags=["ledger-ops"])
+def get_history(limit: int = 50, kind: str = "") -> dict[str, Any]:
+    """Recent settlements across every primitive (most recent first) — a unified activity feed,
+    optionally filtered by ``kind`` (payout/swap/request/escrow/...). Distinct from /memos
+    (provenance notes): this is the raw settlement stream the dashboard streams live."""
+    items = traction.recent(limit=limit, kind=kind.strip().lower())
+    return {"count": len(items), "settlements": items}
 
 
 class DemoRequest(BaseModel):
