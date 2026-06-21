@@ -265,6 +265,25 @@ export interface MemoThreadResponse {
   replies?: MemoItem[];
 }
 
+// Multi-item order (arc-commerce checkout).
+export interface OrderLineItem {
+  description: string;
+  to: string;
+  amount: string;
+  tx_hash: string | null;
+}
+
+export interface OrderResponse {
+  found?: boolean;
+  id: string;
+  total?: string;
+  paid?: string;
+  status?: string;
+  items?: OrderLineItem[];
+  checked_out?: boolean;
+  error?: string;
+}
+
 // Milestone escrow (arc-escrow) — staged release.
 export interface EscrowMilestone {
   label: string;
