@@ -80,6 +80,13 @@ app = FastAPI(
     version="0.1.0",
     summary="Research agent + grounding verifier + attestation (CC-B)",
     lifespan=lifespan,
+    openapi_tags=[
+        {"name": "research", "description": "Ask + grounded citations + attestation audit."},
+        {"name": "primitives", "description": "Nanopayment primitives that settle via the rail."},
+        {"name": "on-chain", "description": "Opt-in ERC-8004 / ERC-8183 / Circle reads + writes."},
+        {"name": "ledger-ops", "description": "Ledger, traction, reconciliation, memos, demo."},
+        {"name": "ops", "description": "Health, config, status."},
+    ],
 )
 
 log = logging.getLogger("keryx.agent")
@@ -223,7 +230,7 @@ class AskRequest(BaseModel):
     )
 
 
-@app.get("/healthz")
+@app.get("/healthz", tags=["ops"])
 def healthz() -> dict[str, Any]:
     status = _embedder_status()
     return {
@@ -236,7 +243,7 @@ def healthz() -> dict[str, Any]:
     }
 
 
-@app.get("/config")
+@app.get("/config", tags=["ops"])
 def config() -> dict[str, Any]:
     enabled = llm_enabled(settings)
     return {
@@ -255,7 +262,7 @@ def config() -> dict[str, Any]:
     }
 
 
-@app.post("/ask")
+@app.post("/ask", tags=["research"])
 def ask(req: AskRequest) -> dict[str, Any]:
     session = Session(
         agent_wallet=req.agent_wallet or signer.address,
@@ -300,7 +307,7 @@ def ask(req: AskRequest) -> dict[str, Any]:
     }
 
 
-@app.get("/identity")
+@app.get("/identity", tags=["on-chain"])
 def identity() -> dict[str, Any]:
     """The agent's ERC-8004 on-chain identity (opt-in; KERYX_ERC8004_ENABLED).
 
@@ -331,7 +338,7 @@ class ReputationRequest(BaseModel):
     tag: str = Field(default="keryx_grounded_citation")
 
 
-@app.post("/reputation")
+@app.post("/reputation", tags=["on-chain"])
 def reputation(req: ReputationRequest) -> dict[str, Any]:
     """Record grounding-derived reputation on-chain (opt-in; requires a signing key).
 
@@ -345,7 +352,7 @@ def reputation(req: ReputationRequest) -> dict[str, Any]:
     return {"enabled": True, "recorded": True, "agent_id": req.agent_id, "tx_hash": tx_hash}
 
 
-@app.get("/validation/{request_hash}")
+@app.get("/validation/{request_hash}", tags=["on-chain"])
 def validation(request_hash: str) -> dict[str, Any]:
     """Read an ERC-8004 ValidationRegistry status (opt-in; KERYX_ERC8004_ENABLED).
 
@@ -374,7 +381,7 @@ def validation(request_hash: str) -> dict[str, Any]:
     }
 
 
-@app.get("/job/{job_id}")
+@app.get("/job/{job_id}", tags=["on-chain"])
 def job(job_id: int) -> dict[str, Any]:
     """Read an ERC-8183 AgenticCommerce job's on-chain state (opt-in; KERYX_ERC8183_ENABLED).
 
@@ -404,7 +411,7 @@ def job(job_id: int) -> dict[str, Any]:
     }
 
 
-@app.get("/circle/transaction/{tx_id}")
+@app.get("/circle/transaction/{tx_id}", tags=["on-chain"])
 def circle_transaction(tx_id: str) -> dict[str, Any]:
     """Read a Circle W3S transaction's status (opt-in; KERYX_CIRCLE_API_KEY).
 
@@ -440,7 +447,7 @@ class PayoutRequest(BaseModel):
     contributors: list[PayoutRecipient] = Field(min_length=1)
 
 
-@app.post("/payout")
+@app.post("/payout", tags=["primitives"])
 def payout(req: PayoutRequest) -> dict[str, Any]:
     """Split one payment across all credited contributors and settle each share (Prior Art 04).
 
@@ -533,7 +540,7 @@ def _escrow_anchor(bond: Any) -> dict[str, Any] | None:
         return {"error": type(exc).__name__}
 
 
-@app.post("/bond")
+@app.post("/bond", tags=["primitives"])
 def post_bond(req: BondRequest) -> dict[str, Any]:
     """Post a USDC reputation bond standing behind a match (PA 08 / RFB 3).
 
@@ -548,7 +555,7 @@ def post_bond(req: BondRequest) -> dict[str, Any]:
     return view
 
 
-@app.get("/bond/{bond_id}")
+@app.get("/bond/{bond_id}", tags=["primitives"])
 def get_bond(bond_id: str) -> dict[str, Any]:
     bond = bonds.get(bond_id)
     if bond is None:
@@ -556,7 +563,7 @@ def get_bond(bond_id: str) -> dict[str, Any]:
     return {"found": True, **_bond_view(bond)}
 
 
-@app.post("/bond/{bond_id}/resolve")
+@app.post("/bond/{bond_id}/resolve", tags=["primitives"])
 def resolve_bond(bond_id: str, req: ResolveRequest) -> dict[str, Any]:
     """Resolve a bond: release to the provider on a pass, or slash to the claimant on a fail.
 
@@ -611,14 +618,14 @@ def _stream_view(s: Any) -> dict[str, Any]:
     }
 
 
-@app.post("/stream")
+@app.post("/stream", tags=["primitives"])
 def open_stream(req: StreamRequest) -> dict[str, Any]:
     """Open a per-second payment stream (RFB 4): approve a rate, bill by the second."""
     s = streams.open(payer=req.payer, payee=req.payee, rate=req.rate)
     return _stream_view(s)
 
 
-@app.get("/stream/{stream_id}")
+@app.get("/stream/{stream_id}", tags=["primitives"])
 def get_stream(stream_id: str) -> dict[str, Any]:
     s = streams.get(stream_id)
     if s is None:
@@ -633,7 +640,7 @@ def _tick_response(stream_id: str, billed: Decimal) -> dict[str, Any]:
     return {**_stream_view(s), "billed": str(billed), "tx_hash": tx_hash}
 
 
-@app.post("/stream/{stream_id}/tick")
+@app.post("/stream/{stream_id}/tick", tags=["primitives"])
 def tick_stream(stream_id: str, req: TickRequest) -> dict[str, Any]:
     """Bill ``seconds`` of flow and settle the newly-accrued micro-USDC to the payee."""
     try:
@@ -645,7 +652,7 @@ def tick_stream(stream_id: str, req: TickRequest) -> dict[str, Any]:
     return _tick_response(stream_id, billed)
 
 
-@app.post("/stream/{stream_id}/pause")
+@app.post("/stream/{stream_id}/pause", tags=["primitives"])
 def pause_stream(stream_id: str) -> dict[str, Any]:
     try:
         s = streams.pause(stream_id)
@@ -654,7 +661,7 @@ def pause_stream(stream_id: str) -> dict[str, Any]:
     return _stream_view(s)
 
 
-@app.post("/stream/{stream_id}/resume")
+@app.post("/stream/{stream_id}/resume", tags=["primitives"])
 def resume_stream(stream_id: str) -> dict[str, Any]:
     try:
         s = streams.resume(stream_id)
@@ -663,7 +670,7 @@ def resume_stream(stream_id: str) -> dict[str, Any]:
     return _stream_view(s)
 
 
-@app.post("/stream/{stream_id}/close")
+@app.post("/stream/{stream_id}/close", tags=["primitives"])
 def close_stream(stream_id: str) -> dict[str, Any]:
     """Close the stream and settle any final billable micro-USDC."""
     try:
@@ -693,7 +700,7 @@ class RoyaltiesRequest(BaseModel):
     min_count: int = Field(default=1, ge=1, description="Play-gate: fewer plays earn nothing")
 
 
-@app.post("/royalties")
+@app.post("/royalties", tags=["primitives"])
 def royalties(req: RoyaltiesRequest) -> dict[str, Any]:
     """User-centric royalties (PA 05): a listener's budget goes only to the creators they
     actually played, split by real play counts. Play-gating drops sub-threshold engagement —
@@ -748,7 +755,7 @@ class QfRequest(BaseModel):
     projects: list[QfProject] = Field(min_length=1)
 
 
-@app.post("/qf")
+@app.post("/qf", tags=["primitives"])
 def qf(req: QfRequest) -> dict[str, Any]:
     """Quadratic-funding match (PA 03/07): distribute a pool by breadth of support — a
     project backed by many small contributions beats one backed by a single large donor.
@@ -792,7 +799,7 @@ class RetroRequest(BaseModel):
     projects: list[RetroProject] = Field(min_length=1)
 
 
-@app.post("/retro")
+@app.post("/retro", tags=["primitives"])
 def retro(req: RetroRequest) -> dict[str, Any]:
     """Retroactive funding (PA 07): pay out a pool *after the fact* to what proved valuable,
     weighted quadratically by realized impact (distinct engagers) — breadth of impact wins,
@@ -834,7 +841,7 @@ class SendRequest(BaseModel):
         return v
 
 
-@app.post("/send")
+@app.post("/send", tags=["primitives"])
 def send(req: SendRequest) -> dict[str, Any]:
     """Send USDC with a provenance memo (Arc "Send USDC with a memo" / circlefin/recibo).
 
@@ -852,21 +859,21 @@ def send(req: SendRequest) -> dict[str, Any]:
     }
 
 
-@app.get("/memo/{tx_hash}")
+@app.get("/memo/{tx_hash}", tags=["ledger-ops"])
 def get_memo(tx_hash: str) -> dict[str, Any]:
     """Read the provenance memo bound to a settlement tx."""
     memo = _memos.get(tx_hash)
     return {"tx_hash": tx_hash, "found": memo is not None, "memo": memo}
 
 
-@app.get("/memos")
+@app.get("/memos", tags=["ledger-ops"])
 def list_memos(limit: int = 20) -> dict[str, Any]:
     """Recent provenance memos (most recent first) — a feed of why payments were made."""
     items = [{"tx_hash": tx, "memo": memo} for tx, memo in reversed(list(_memos.items()))]
     return {"count": len(items), "memos": items[: max(0, limit)]}
 
 
-@app.get("/traction")
+@app.get("/traction", tags=["ledger-ops"])
 def get_traction() -> dict[str, Any]:
     """Settled volume rolled up across every primitive — the traction story in one call."""
     return traction.summary()
@@ -879,7 +886,7 @@ class DemoRequest(BaseModel):
 _demo_offset = 0
 
 
-@app.post("/demo/run")
+@app.post("/demo/run", tags=["ledger-ops"])
 def demo_run(req: DemoRequest) -> dict[str, Any]:
     """Generate sample volume server-side: run ``rounds`` of every primitive and return the
     rolled-up traction. One call for the dashboard's 'generate volume' button (agents are the
@@ -892,7 +899,7 @@ def demo_run(req: DemoRequest) -> dict[str, Any]:
     return {"rounds": req.rounds, "traction": traction.summary()}
 
 
-@app.get("/status")
+@app.get("/status", tags=["ledger-ops"])
 def status() -> dict[str, Any]:
     """One-call dashboard bootstrap: live config + traction + citation metrics + which
     capabilities are enabled. Lets the UI render the whole picture from a single fetch."""
@@ -913,7 +920,7 @@ def status() -> dict[str, Any]:
     }
 
 
-@app.post("/attestation/verify")
+@app.post("/attestation/verify", tags=["research"])
 def attestation_verify(att: Attestation) -> dict[str, Any]:
     """Verify a signed attestation independently — "don't trust us, check the signature".
 
@@ -928,13 +935,13 @@ def attestation_verify(att: Attestation) -> dict[str, Any]:
     }
 
 
-@app.get("/metrics")
+@app.get("/metrics", tags=["ledger-ops"])
 def metrics() -> dict[str, Any]:
     """Traction metrics — the numbers we lead with (prd.md §8)."""
     return ledger.metrics()
 
 
-@app.get("/ledger")
+@app.get("/ledger", tags=["ledger-ops"])
 def get_ledger(limit: int = 50) -> dict[str, Any]:
     """Settlement ledger for the dashboard. Mirrors chain; chain stays canonical.
 
@@ -957,7 +964,7 @@ def get_ledger(limit: int = 50) -> dict[str, Any]:
     }
 
 
-@app.get("/reconcile")
+@app.get("/reconcile", tags=["ledger-ops"])
 def reconcile(limit: int = 50) -> dict[str, Any]:
     """Reconcile the off-chain ledger against chain — "don't trust our DB, here's the chain".
 
