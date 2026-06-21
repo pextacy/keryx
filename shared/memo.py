@@ -54,6 +54,7 @@ class Memo:
     version: int = RECIBO_VERSION
     scheme: str = SCHEME_PLAINTEXT
     mime: str = DEFAULT_MIME
+    in_reply_to: str = ""  # tx hash of the memo this one replies to (recibo response thread)
 
     @property
     def confidential(self) -> bool:
@@ -83,6 +84,7 @@ class Memo:
             "version": self.version,
             "scheme": self.scheme,
             "mime": self.mime,
+            "in_reply_to": self.in_reply_to,
         }
 
 
@@ -94,6 +96,7 @@ def build_memo(
     message_from: str = "",
     message_to: str = "",
     confidential: bool = False,
+    in_reply_to: str = "",
 ) -> Memo:
     """Build a Memo, normalising the kind to the known taxonomy (unknown -> 'other')."""
     k = kind.strip().lower()
@@ -106,4 +109,5 @@ def build_memo(
         message_from=message_from,
         message_to=message_to,
         scheme=SCHEME_CONFIDENTIAL if confidential else SCHEME_PLAINTEXT,
+        in_reply_to=in_reply_to.strip(),
     )

@@ -922,6 +922,9 @@ class SendRequest(BaseModel):
         default=False,
         description="Redact the memo note in the public feed (recibo encrypted scheme)",
     )
+    reply_to: str = Field(
+        default="", description="tx hash of a prior memo this payment replies to (recibo thread)"
+    )
     refund_to: str = Field(
         default="",
         description="0x refund destination, bound at send time (circlefin/refund-protocol)",
@@ -956,6 +959,7 @@ def send(req: SendRequest) -> dict[str, Any]:
         message_from=signer.address,
         message_to=req.to,
         confidential=req.confidential,
+        in_reply_to=req.reply_to,
     )
     if tx_hash is not None:
         _record_memo(tx_hash, memo)
@@ -1021,6 +1025,7 @@ def refund(tx_hash: str, req: RefundRequest) -> dict[str, Any]:
                 note=f"{req.reason}, by {req.by}",
                 message_from=destination,
                 message_to=destination,
+                in_reply_to=tx_hash,
             ),
         )
     return {
@@ -1606,6 +1611,36 @@ def get_memo(tx_hash: str) -> dict[str, Any]:
     even when confidential (a direct read stands in for a counterparty decrypting it)."""
     found = tx_hash in _memos or tx_hash in _memo_objs
     return {"found": found, **_memo_item(tx_hash, public=False)}
+
+
+@app.get("/memo/{tx_hash}/thread", tags=["ledger-ops"])
+def memo_thread(tx_hash: str) -> dict[str, Any]:
+    """Walk the recibo reply thread for a memo: the ancestors it replies to (via in_reply_to)
+    and the descendants that reply to it. Threads provenance — e.g. a refund -> its original
+    send, or a follow-up payment -> the memo it answers."""
+    if tx_hash not in _memo_objs:
+        return {"found": False, "tx_hash": tx_hash}
+    # Ancestors: follow in_reply_to back to the root (guard against cycles).
+    ancestors: list[dict[str, Any]] = []
+    seen: set[str] = {tx_hash}
+    cursor = _memo_objs[tx_hash].in_reply_to
+    while cursor and cursor in _memo_objs and cursor not in seen:
+        seen.add(cursor)
+        ancestors.append(_memo_item(cursor, public=False))
+        cursor = _memo_objs[cursor].in_reply_to
+    # Descendants: memos whose in_reply_to points at this tx.
+    replies = [
+        _memo_item(tx, public=False)
+        for tx, memo in _memo_objs.items()
+        if memo.in_reply_to == tx_hash
+    ]
+    return {
+        "found": True,
+        "tx_hash": tx_hash,
+        "memo": _memo_item(tx_hash, public=False),
+        "ancestors": ancestors,
+        "replies": replies,
+    }
 
 
 @app.get("/memos", tags=["ledger-ops"])
