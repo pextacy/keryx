@@ -55,6 +55,7 @@ class Memo:
     scheme: str = SCHEME_PLAINTEXT
     mime: str = DEFAULT_MIME
     in_reply_to: str = ""  # tx hash of the memo this one replies to (recibo response thread)
+    attachment_url: str = ""  # link to a non-text payload (recibo carries mime'd attachments)
 
     @property
     def confidential(self) -> bool:
@@ -85,6 +86,7 @@ class Memo:
             "scheme": self.scheme,
             "mime": self.mime,
             "in_reply_to": self.in_reply_to,
+            "attachment_url": self.attachment_url,
         }
 
 
@@ -97,6 +99,8 @@ def build_memo(
     message_to: str = "",
     confidential: bool = False,
     in_reply_to: str = "",
+    attachment_url: str = "",
+    mime: str = DEFAULT_MIME,
 ) -> Memo:
     """Build a Memo, normalising the kind to the known taxonomy (unknown -> 'other')."""
     k = kind.strip().lower()
@@ -109,5 +113,7 @@ def build_memo(
         message_from=message_from,
         message_to=message_to,
         scheme=SCHEME_CONFIDENTIAL if confidential else SCHEME_PLAINTEXT,
+        mime=mime,
         in_reply_to=in_reply_to.strip(),
+        attachment_url=attachment_url.strip(),
     )

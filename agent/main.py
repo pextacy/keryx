@@ -990,6 +990,14 @@ class SendRequest(BaseModel):
     reply_to: str = Field(
         default="", description="tx hash of a prior memo this payment replies to (recibo thread)"
     )
+    attachment_url: str = Field(
+        default="",
+        max_length=2048,
+        description="Link to a non-text payload (recibo mime'd attachment)",
+    )
+    mime: str = Field(
+        default="text/plain;charset=UTF-8", max_length=120, description="Attachment media type"
+    )
     refund_to: str = Field(
         default="",
         description="0x refund destination, bound at send time (circlefin/refund-protocol)",
@@ -1025,6 +1033,8 @@ def send(req: SendRequest) -> dict[str, Any]:
         message_to=req.to,
         confidential=req.confidential,
         in_reply_to=req.reply_to,
+        attachment_url=req.attachment_url,
+        mime=req.mime,
     )
     if tx_hash is not None:
         _record_memo(tx_hash, memo)
