@@ -45,6 +45,8 @@ from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
 from shared.streaming import StreamBook, StreamClosed
+from shared.swap import SwapError
+from shared.swap import quote as swap_quote
 from shared.traction import TractionBook
 from shared.types import Attestation, CitationIntent, SettlementStatus
 
@@ -927,6 +929,59 @@ def refund(tx_hash: str, req: RefundRequest) -> dict[str, Any]:
         "by": req.by,
         "refund_tx": refund_tx,
     }
+
+
+class SwapRequest(BaseModel):
+    token_in: str = Field(default="USDC", description="Stablecoin to sell (USDC|EURC)")
+    token_out: str = Field(default="EURC", description="Stablecoin to buy (USDC|EURC)")
+    amount_in: Decimal = Field(gt=0, description="Amount of token_in to swap")
+    to: str = Field(default="", description="0x wallet to receive token_out (optional)")
+
+    @field_validator("to")
+    @classmethod
+    def _check_to(cls, v: str) -> str:
+        if v and not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+def _quote_payload(q: Any) -> dict[str, Any]:
+    return {
+        "token_in": q.token_in,
+        "token_out": q.token_out,
+        "amount_in": str(q.amount_in),
+        "amount_out": str(q.amount_out),
+        "app_fee_bps": q.app_fee_bps,
+        "app_fee": str(q.app_fee),
+        "effective_rate": str(q.effective_rate),
+    }
+
+
+@app.post("/swap/quote", tags=["primitives"])
+def swap_quote_endpoint(req: SwapRequest) -> dict[str, Any]:
+    """Quote a USDC<->EURC stablecoin swap (ported from circlefin/arc-stablecoin-fx
+    estimateSwap): gross at the mock FX rate, less an app fee in bps. Offline — no funds."""
+    try:
+        q = swap_quote(req.token_in, req.token_out, req.amount_in, settings.swap_app_fee_bps)
+    except SwapError as exc:
+        return {"error": str(exc)}
+    return _quote_payload(q)
+
+
+@app.post("/swap", tags=["primitives"])
+def swap(req: SwapRequest) -> dict[str, Any]:
+    """Execute a stablecoin swap (offline App Kit kit.swap() analogue): quote, then settle the
+    net token_out to the recipient through the active rail. The real on-chain path is
+    rail/appkit swapOnArc (kit key + funds gated)."""
+    try:
+        q = swap_quote(req.token_in, req.token_out, req.amount_in, settings.swap_app_fee_bps)
+    except SwapError as exc:
+        return {"error": str(exc)}
+    destination = req.to or _demo_wallet(7)
+    tx_hash = _settle_to(f"swap:{q.token_in}-{q.token_out}", destination, q.amount_out, kind="swap")
+    payload = _quote_payload(q)
+    payload.update({"to": destination, "settled": tx_hash is not None, "tx_hash": tx_hash})
+    return payload
 
 
 @app.get("/memo/{tx_hash}", tags=["ledger-ops"])

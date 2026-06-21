@@ -113,6 +113,20 @@ export interface TractionResponse {
   by_kind: Record<string, { count: number; volume_usdc: string }>;
 }
 
+export interface SwapResponse {
+  token_in?: string;
+  token_out?: string;
+  amount_in?: string;
+  amount_out?: string;
+  app_fee_bps?: number;
+  app_fee?: string;
+  effective_rate?: string;
+  to?: string;
+  settled?: boolean;
+  tx_hash?: string | null;
+  error?: string;
+}
+
 export interface JobResponse {
   enabled: boolean;
   found?: boolean;

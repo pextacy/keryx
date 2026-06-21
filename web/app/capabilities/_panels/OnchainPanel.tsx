@@ -9,6 +9,7 @@ import type {
   ReputationResponse,
   ValidationResponse,
 } from "@/lib/capabilities";
+import { Copy } from "@/app/Copy";
 import { Card, ErrorNote, Field } from "./Card";
 
 export function OnchainPanel() {
@@ -159,9 +160,16 @@ export function OnchainPanel() {
       {rep && (
         <div className="mt-1 font-mono text-xs">
           {rep.recorded && rep.tx_hash ? (
-            <a href={ARC_EXPLORER_TX + rep.tx_hash} target="_blank" className="text-blue-600 underline">
-              recorded · tx {rep.tx_hash.slice(0, 14)}…
-            </a>
+            <span className="inline-flex items-center gap-1">
+              <a
+                href={ARC_EXPLORER_TX + rep.tx_hash}
+                target="_blank"
+                className="text-blue-600 underline"
+              >
+                recorded · tx {rep.tx_hash.slice(0, 14)}…
+              </a>
+              <Copy text={rep.tx_hash} />
+            </span>
           ) : (
             <span className="text-gray-500">{rep.reason ?? "not recorded"}</span>
           )}

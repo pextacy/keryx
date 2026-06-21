@@ -47,6 +47,14 @@ class Settings(BaseSettings):
         default="http://localhost:3403/settle", description="TS payer bridge for the http rail"
     )
 
+    # --- Stablecoin FX swap (USDC <-> EURC; offline engine, App Kit fee model) ---
+    swap_app_fee_bps: int = Field(
+        default=30,
+        ge=0,
+        le=10_000,
+        description="App fee in bps taken off a swap (arc-stablecoin-fx customFee.percentageBps)",
+    )
+
     # --- Off-chain store (Neon — index/registry/cache only; chain is canonical) ---
     database_url: str = Field(default="", description="Neon Postgres connection string")
 

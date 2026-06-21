@@ -4,6 +4,7 @@ import { useState } from "react";
 import { errorMessage, postJson } from "@/lib/api";
 import { ARC_EXPLORER_TX } from "@/lib/types";
 import type { SendResponse } from "@/lib/capabilities";
+import { Copy } from "@/app/Copy";
 import { Card, ErrorNote, Field } from "./Card";
 
 export function SendPanel() {
@@ -98,9 +99,16 @@ export function SendPanel() {
           </div>
           <div className="truncate text-gray-600">memo: {res.memo}</div>
           {res.tx_hash && (
-            <a href={ARC_EXPLORER_TX + res.tx_hash} target="_blank" className="text-blue-600 underline">
-              tx {res.tx_hash.slice(0, 14)}…
-            </a>
+            <div className="flex items-center gap-1">
+              <a
+                href={ARC_EXPLORER_TX + res.tx_hash}
+                target="_blank"
+                className="text-blue-600 underline"
+              >
+                tx {res.tx_hash.slice(0, 14)}…
+              </a>
+              <Copy text={res.tx_hash} />
+            </div>
           )}
           {res.tx_hash &&
             (refunded ? (

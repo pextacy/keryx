@@ -11,6 +11,7 @@ import { QfPanel } from "./_panels/QfPanel";
 import { RetroPanel } from "./_panels/RetroPanel";
 import { OnchainPanel } from "./_panels/OnchainPanel";
 import { JobEscrowPanel } from "./_panels/JobEscrowPanel";
+import { SwapPanel } from "./_panels/SwapPanel";
 
 export default function CapabilitiesPage() {
   return (
@@ -34,6 +35,7 @@ export default function CapabilitiesPage() {
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <SendPanel />
+        <SwapPanel />
         <PayoutPanel />
         <BondPanel />
         <StreamPanel />
