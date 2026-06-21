@@ -18,6 +18,8 @@ const CATEGORY_LABEL: Record<string, string> = {
 // capability with its Circle upstream — the "what does this do and where's it from" map.
 export function CapabilityIndexPanel() {
   const [ix, setIx] = useState<CapabilityIndex | null>(null);
+  const [category, setCategory] = useState("");
+  const [portedOnly, setPortedOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,14 +28,15 @@ export function CapabilityIndexPanel() {
       .catch((err) => setError(errorMessage(err)));
   }, []);
 
-  const groups = ix
-    ? Object.entries(
-        ix.capabilities.reduce<Record<string, CapabilityEntry[]>>((acc, c) => {
-          (acc[c.category] ??= []).push(c);
-          return acc;
-        }, {}),
-      )
-    : [];
+  const filtered = (ix?.capabilities ?? []).filter(
+    (c) => (!category || c.category === category) && (!portedOnly || c.ported),
+  );
+  const groups = Object.entries(
+    filtered.reduce<Record<string, CapabilityEntry[]>>((acc, c) => {
+      (acc[c.category] ??= []).push(c);
+      return acc;
+    }, {}),
+  );
 
   return (
     <Card
@@ -45,11 +48,38 @@ export function CapabilityIndexPanel() {
       }
     >
       <ErrorNote message={error} />
+
+      {ix && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1"
+          >
+            <option value="">all categories</option>
+            {Object.keys(ix.by_category).map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABEL[c] ?? c} ({ix.by_category[c]})
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-1 text-gray-600">
+            <input
+              type="checkbox"
+              checked={portedOnly}
+              onChange={(e) => setPortedOnly(e.target.checked)}
+            />
+            ported only
+          </label>
+          <span className="text-gray-400">{filtered.length} shown</span>
+        </div>
+      )}
+
       <div className="space-y-4">
-        {groups.map(([category, caps]) => (
-          <div key={category}>
+        {groups.map(([cat, caps]) => (
+          <div key={cat}>
             <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              {CATEGORY_LABEL[category] ?? category}
+              {CATEGORY_LABEL[cat] ?? cat}
             </h4>
             <ul className="mt-1 space-y-1.5">
               {caps.map((c) => (
