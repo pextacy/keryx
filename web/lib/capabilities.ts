@@ -179,6 +179,7 @@ export interface BalanceResponse {
   requests: { total: number; open: number; outstanding_usdc: string };
   treasury?: { wallet: string; balance: string; sweepable: boolean; threshold: string };
   gateway?: { accounts: number; unified_usdc: string };
+  escrow?: { total: number; open: number; locked_usdc: string };
 }
 
 // Prepaid credits (arc-commerce buy-credits-with-USDC).
@@ -412,6 +413,7 @@ export interface StatusResponse {
     treasury: { balance_usdc: string; flows: number; sweepable: boolean };
     workflows: { total: number; active: number };
     gateway: { accounts: number; unified_usdc: string };
+    escrow: { total: number; open: number; locked_usdc: string };
     memos: number;
     sends: number;
   };
