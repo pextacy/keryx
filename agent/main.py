@@ -356,6 +356,7 @@ class AskRequest(BaseModel):
 @app.get("/healthz", tags=["ops"])
 def healthz() -> dict[str, Any]:
     status = _embedder_status()
+    traction_summary = traction.summary()
     return {
         "status": "ok",
         "service": "agent",
@@ -363,6 +364,14 @@ def healthz() -> dict[str, Any]:
         "llm": llm_enabled(settings),
         "embedder": status["embedder"],
         "embedder_degraded": status["embedder_degraded"],
+        # Compact activity snapshot for monitors — settled volume + a few live counts.
+        "activity": {
+            "settlements": traction_summary["total_payments"],
+            "volume_usdc": traction_summary["total_volume_usdc"],
+            "memos": len(_memo_objs),
+            "active_schedules": _schedules.summary()["active"],
+            "open_escrows": _escrows.summary()["open"],
+        },
     }
 
 
