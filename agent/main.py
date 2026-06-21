@@ -41,6 +41,7 @@ from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
+from shared.credits import CreditBook, CreditError
 from shared.memo import Memo, build_memo
 from shared.p2p import RequestBook, RequestError
 from shared.qf import Project, quadratic_match
@@ -173,6 +174,9 @@ _workflows = WorkflowManager()
 # Split-bill money requests (inspired by circlefin/arc-p2p-payments): a payee requests a
 # total split across payers; each payer's share settles to the payee on fulfil.
 _requests = RequestBook()
+# Prepaid credits (ported from circlefin/arc-commerce): top up USDC once into a balance, then
+# draw it down per action — batches many micro-tolls into one settlement.
+_credits = CreditBook()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -1213,6 +1217,95 @@ def get_request(rid: str) -> dict[str, Any]:
     if req is None:
         return {"found": False, "id": rid}
     return {"found": True, **_request_view(req)}
+
+
+# --- Prepaid credits (arc-commerce buy-credits-with-USDC) ---
+
+# Treasury that receives prepaid top-ups (a real deployment uses a Circle wallet; here a
+# deterministic demo address so the settlement is visible end to end).
+_CREDIT_TREASURY = _demo_wallet(0)
+
+
+class TopupRequest(BaseModel):
+    wallet: str = Field(description="0x wallet topping up its credit balance")
+    amount: Decimal = Field(gt=0, description="USDC to prepay into credits")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class SpendRequest(BaseModel):
+    wallet: str = Field(description="0x wallet spending prepaid credits")
+    amount: Decimal = Field(gt=0, description="Credits to draw down")
+    reason: str = Field(default="citation", max_length=120, description="What the credits buy")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+def _credit_view(acct: Any) -> dict[str, Any]:
+    return {
+        "wallet": acct.wallet,
+        "balance": str(acct.balance),
+        "entries": [
+            {
+                "kind": e.kind.value,
+                "amount": str(e.amount),
+                "reason": e.reason,
+                "tx_hash": e.tx_hash,
+            }
+            for e in acct.entries
+        ],
+    }
+
+
+@app.post("/credits/topup", tags=["primitives"])
+def credits_topup(req: TopupRequest) -> dict[str, Any]:
+    """Prepay USDC into a credit balance (ported from circlefin/arc-commerce): settles the
+    amount to the treasury, then credits the wallet. One settlement funds many later spends."""
+    tx_hash = _settle_to(f"credits:{req.wallet}", _CREDIT_TREASURY, req.amount, kind="topup")
+    if tx_hash is None:
+        return {"error": "settlement_failed", "wallet": req.wallet}
+    acct = _credits.credit(req.wallet, req.amount, tx_hash)
+    _record_memo(
+        tx_hash,
+        build_memo(
+            kind="invoice",
+            ref="credits-topup",
+            note=f"prepaid {req.amount} USDC",
+            message_from=req.wallet,
+            message_to=_CREDIT_TREASURY,
+        ),
+    )
+    return {"topped_up": True, "tx_hash": tx_hash, **_credit_view(acct)}
+
+
+@app.post("/credits/spend", tags=["primitives"])
+def credits_spend(req: SpendRequest) -> dict[str, Any]:
+    """Draw down prepaid credits for an action (no on-chain move — already paid at top-up).
+    Returns ``insufficient_credits`` if the balance is too low."""
+    try:
+        acct = _credits.spend(req.wallet, req.amount, req.reason)
+    except CreditError as exc:
+        return {"error": str(exc), "wallet": req.wallet}
+    return {"spent": True, "reason": req.reason, **_credit_view(acct)}
+
+
+@app.get("/credits/{wallet}", tags=["primitives"])
+def credits_balance(wallet: str) -> dict[str, Any]:
+    """Read a wallet's prepaid credit balance and its top-up/spend history."""
+    acct = _credits.get(wallet)
+    if acct is None:
+        return {"found": False, "wallet": wallet, "balance": "0"}
+    return {"found": True, **_credit_view(acct)}
 
 
 def _memo_item(tx_hash: str) -> dict[str, Any]:
