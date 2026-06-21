@@ -270,18 +270,61 @@ curl -s localhost:8000/gateway/spend -H 'content-type: application/json' \
 curl -s localhost:8000/gateway/0xa...a   # -> {"balance":"0.300000","by_chain":{"avalancheFuji":"0.5"},...}
 ```
 
-## Confidential memos — redact the note in the public feed (recibo)
+## Milestone escrow — lock a total, release in approved tranches (arc-escrow)
 
-Pass `confidential: true` on `/send` to mark a memo confidential (recibo's `encrypt` scheme).
-Its note is redacted (`🔒 confidential`) in the public `GET /memos` feed and the one-line
-memo, but returned in full on a direct `GET /memo/{tx}` read — the offline analogue of a
-recibo PGP memo only the counterparties can decrypt.
+A client escrows a total split across named milestones; each releases its tranche to the
+provider on approval, settling via the rail — the staged-delivery generalisation of
+arc-escrow's agreement→validate→release flow.
+
+```bash
+EID=$(curl -s localhost:8000/escrow -H 'content-type: application/json' -d '{
+  "client":"0xa...a","provider":"0xb...b",
+  "milestones":[{"label":"draft","amount":"0.01"},{"label":"final","amount":"0.02"}]
+}' | jq -r .id)
+curl -s localhost:8000/escrow/$EID/release -H 'content-type: application/json' -d '{"index":0}'
+curl -s localhost:8000/escrow/$EID   # -> {"status":"open","released":"0.010000","locked":"0.020000",...}
+```
+
+## Confidential + threaded memos — recibo encrypt scheme + reply threads (recibo)
+
+Pass `confidential: true` on `/send` to mark a memo confidential (recibo's `encrypt` scheme):
+its note is redacted (`🔒 confidential`) in the public `GET /memos` feed but returned in full
+on a direct `GET /memo/{tx}` read. Pass `reply_to: <tx>` to thread a memo to a prior one;
+`GET /memo/{tx}/thread` walks ancestors + replies (a refund auto-threads to its original send).
 
 ```bash
 TX=$(curl -s localhost:8000/send -H 'content-type: application/json' \
   -d '{"to":"0xa...a","amount":"0.01","kind":"invoice","memo":"secret terms","confidential":true}' | jq -r .tx_hash)
 curl -s localhost:8000/memo/$TX             # -> {"meta":{"note":"secret terms","scheme":"confidential",...}}
 curl -s localhost:8000/memos | jq '.memos[0].meta.note'   # -> "🔒 confidential"
+# threaded:
+RE=$(curl -s localhost:8000/send -d '{"to":"0xa...a","amount":"0.01","memo":"paying it","reply_to":"'$TX'"}' \
+  -H 'content-type: application/json' | jq -r .tx_hash)
+curl -s localhost:8000/memo/$RE/thread | jq '.ancestors[0].meta.note'   # -> "secret terms"
+```
+
+## Discovery — capabilities index + agent tools
+
+`GET /capabilities` is a machine-readable index of every primitive (name, category, endpoints,
+and the Circle upstream it's ported from). `GET /agent/tools` returns the primitives as
+tool-use schemas (Claude Agent SDK / OpenAI function-calling), so another agent can discover
+and invoke Keryx with JSON — the `circlefin/agent-stack-starter-kits` idea.
+
+```bash
+curl -s localhost:8000/capabilities | jq '{count, ported, by_category}'
+# -> {"count":19,"ported":12,"by_category":{"split":4,"settlement":7,...}}
+curl -s localhost:8000/agent/tools | jq '.tools[].name'   # ask, send_payment, swap_stablecoin, ...
+```
+
+## History — unified settlement activity feed
+
+`GET /history` is the raw stream of every settlement that cleared the rail (most recent first),
+optionally filtered by `kind` — distinct from `/memos` (provenance notes).
+
+```bash
+curl -s 'localhost:8000/history?limit=25'          # all kinds
+curl -s 'localhost:8000/history?kind=swap&limit=10' # only swaps
+# -> {"count":N,"settlements":[{"seq":..,"kind":"swap","amount":"..","wallet":"0x..","tx_hash":"0x.."}]}
 ```
 
 ## Dashboard bootstrap — one call for the whole picture

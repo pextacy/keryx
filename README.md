@@ -51,8 +51,28 @@ splits (every payout sums to the input down to the micro-USDC, never overpaying)
 | Streaming | `POST /stream`, `…/tick` | pay-per-second flow, billed live with fractional carry |
 | User royalties | `POST /royalties` | a listener's budget pays only who they played, with play-gating |
 | Quadratic funding | `POST /qf` | match a pool by breadth `(Σ√c)²` — many small backers beat one big |
-| Traction | `GET /traction` | settled volume rolled up across every primitive |
+| Traction | `GET /traction`, `/history` | settled volume rolled up + a unified recent-settlements feed |
 | On-chain (opt-in) | `GET /identity`, `/job/{id}`, `/validation/{h}` | ERC-8004 identity/reputation/validation + ERC-8183 job escrow |
+
+**Ported from Circle's open-source Arc repos** (vendored under `vendor/circle/`, see [`NOTICE`](NOTICE)) —
+each the offline analogue of the upstream, settling through the same rail:
+
+| Capability | Endpoint | Ported from |
+| --- | --- | --- |
+| Stablecoin swap | `POST /swap` | `arc-stablecoin-fx` |
+| Split-bill request | `POST /request`, `…/fulfil` | `arc-p2p-payments` |
+| Prepaid credits + tiers | `POST /credits/topup`, `GET /credits/tiers` | `arc-commerce` |
+| Approved-action workflow | `POST /workflow/approve`, `…/execute` | `circle-ooak` |
+| Refund / dispute | `POST /refund/{tx}` | `refund-protocol` |
+| Structured + confidential + threaded memos | `GET /memos`, `/memo/{tx}/thread` | `recibo` |
+| Treasury + sweep | `GET /treasury`, `POST /treasury/sweep` | `arc-fintech` |
+| Gateway unified balance | `POST /gateway/deposit`, `…/spend` | `arc-multichain-wallet` |
+| Milestone escrow | `POST /escrow`, `…/release` | `arc-escrow` |
+| Agent-tool manifest | `GET /agent/tools`, `/capabilities` | `agent-stack-starter-kits` |
+
+Keryx is **agent-callable**: `GET /agent/tools` returns its primitives as tool-use schemas
+(Claude Agent SDK / OpenAI function-calling), and `GET /capabilities` indexes all 19 with
+their provenance.
 
 ```bash
 make capabilities-demo    # boots the agent, drives every primitive, prints rolled-up /traction
