@@ -98,6 +98,37 @@ export interface SendResponse {
   tx_hash: string | null;
 }
 
+// circle-ooak approved-action workflow (intent -> approve -> execute).
+export interface ApproveResponse {
+  wfid?: string;
+  approved?: number;
+  error?: string;
+}
+
+export interface WorkflowExecuteResponse {
+  wfid: string;
+  settled?: boolean;
+  tx_hash?: string | null;
+  to?: string;
+  amount?: string;
+  error?: string;
+}
+
+export interface WorkflowAction {
+  intent: string;
+  status: string;
+  result: string | null;
+}
+
+export interface WorkflowResponse {
+  found: boolean;
+  wfid: string;
+  status?: string;
+  cursor?: number;
+  remaining?: number;
+  actions?: WorkflowAction[];
+}
+
 // Recibo-style structured memo envelope (kind/ref/note + metadata + routing).
 export interface MemoMeta {
   kind: string;

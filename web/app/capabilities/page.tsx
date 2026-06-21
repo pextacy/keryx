@@ -13,6 +13,7 @@ import { OnchainPanel } from "./_panels/OnchainPanel";
 import { JobEscrowPanel } from "./_panels/JobEscrowPanel";
 import { SwapPanel } from "./_panels/SwapPanel";
 import { MemoFeedPanel } from "./_panels/MemoFeedPanel";
+import { WorkflowPanel } from "./_panels/WorkflowPanel";
 
 export default function CapabilitiesPage() {
   return (
@@ -45,6 +46,7 @@ export default function CapabilitiesPage() {
         <RetroPanel />
         <OnchainPanel />
         <JobEscrowPanel />
+        <WorkflowPanel />
         <MemoFeedPanel />
       </div>
     </main>
