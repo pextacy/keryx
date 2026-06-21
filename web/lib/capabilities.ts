@@ -267,6 +267,26 @@ export interface MemoThreadResponse {
   replies?: MemoItem[];
 }
 
+// Live agent config (GET /config) — economics + which paths are live.
+export interface ConfigResponse {
+  grounding_threshold: number;
+  rail: string;
+  agent_pubkey: string;
+  sources_indexed: number;
+  llm_enabled: boolean;
+  judge: string;
+  answerer: string;
+  embedder: string;
+  economics: {
+    usdc_floor: string;
+    citation_toll_min: string;
+    citation_toll_max: string;
+    grounding_threshold: number;
+    swap_app_fee_bps: number;
+    treasury_sweep_threshold: string;
+  };
+}
+
 // Recurring payment schedule (arc-fintech).
 export interface ScheduleResponse {
   found?: boolean;

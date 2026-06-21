@@ -397,6 +397,15 @@ def config() -> dict[str, Any]:
         "answer_model": settings.answer_model_resolved if enabled else None,
         # Which similarity path is live — dense Voyage when keyed AND healthy, else BagOfWords.
         **_embedder_status(),
+        # Live settlement economics (config, not hardcoded) — the knobs reviewers care about.
+        "economics": {
+            "usdc_floor": str(settings.usdc_floor),
+            "citation_toll_min": str(settings.citation_toll_min),
+            "citation_toll_max": str(settings.citation_toll_max),
+            "grounding_threshold": settings.grounding_threshold,
+            "swap_app_fee_bps": settings.swap_app_fee_bps,
+            "treasury_sweep_threshold": str(settings.treasury_sweep_threshold),
+        },
     }
 
 
