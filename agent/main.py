@@ -41,7 +41,7 @@ from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
-from shared.credits import CreditBook, CreditError
+from shared.credits import CREDIT_TIERS, CreditBook, CreditError, tier_by_name
 from shared.gateway import SUPPORTED_CHAINS, GatewayBook, GatewayError, normalize_chain
 from shared.memo import Memo, build_memo
 from shared.p2p import RequestBook, RequestError
@@ -1287,7 +1287,12 @@ _treasury = Treasury(wallet=_CREDIT_TREASURY)
 
 class TopupRequest(BaseModel):
     wallet: str = Field(description="0x wallet topping up its credit balance")
-    amount: Decimal = Field(gt=0, description="USDC to prepay into credits")
+    amount: Decimal | None = Field(
+        default=None, gt=0, description="USDC to prepay (ignored when a tier is given)"
+    )
+    tier: str = Field(
+        default="", description="Credit package (starter|plus|pro|scale) — bonus credits per USDC"
+    )
 
     @field_validator("wallet")
     @classmethod
@@ -1326,26 +1331,59 @@ def _credit_view(acct: Any) -> dict[str, Any]:
     }
 
 
+@app.get("/credits/tiers", tags=["primitives"])
+def credits_tiers() -> dict[str, Any]:
+    """The purchasable credit packages — pay USDC, get bonus credits (arc-commerce discount)."""
+    return {
+        "tiers": [
+            {
+                "name": t.name,
+                "usdc": str(t.usdc),
+                "bonus_bps": t.bonus_bps,
+                "credits": str(t.credits()),
+            }
+            for t in CREDIT_TIERS
+        ]
+    }
+
+
 @app.post("/credits/topup", tags=["primitives"])
 def credits_topup(req: TopupRequest) -> dict[str, Any]:
-    """Prepay USDC into a credit balance (ported from circlefin/arc-commerce): settles the
-    amount to the treasury, then credits the wallet. One settlement funds many later spends."""
-    tx_hash = _settle_to(f"credits:{req.wallet}", _CREDIT_TREASURY, req.amount, kind="topup")
+    """Prepay USDC into a credit balance (ported from circlefin/arc-commerce): settles the paid
+    USDC to the treasury, then credits the wallet. A ``tier`` grants bonus credits on top of the
+    USDC paid (bulk discount); otherwise ``amount`` credits 1:1. One settlement funds spends."""
+    if req.tier:
+        try:
+            tier = tier_by_name(req.tier)
+        except CreditError as exc:
+            return {"error": str(exc), "wallet": req.wallet}
+        paid, credited, label = tier.usdc, tier.credits(), f"tier {tier.name}"
+    elif req.amount is not None:
+        paid, credited, label = req.amount, req.amount, "prepaid"
+    else:
+        return {"error": "provide an amount or a tier", "wallet": req.wallet}
+    tx_hash = _settle_to(f"credits:{req.wallet}", _CREDIT_TREASURY, paid, kind="topup")
     if tx_hash is None:
         return {"error": "settlement_failed", "wallet": req.wallet}
-    acct = _credits.credit(req.wallet, req.amount, tx_hash)
-    _treasury.deposit(req.amount, req.wallet, tx_hash)
+    acct = _credits.credit(req.wallet, credited, tx_hash)
+    _treasury.deposit(paid, req.wallet, tx_hash)
     _record_memo(
         tx_hash,
         build_memo(
             kind="invoice",
             ref="credits-topup",
-            note=f"prepaid {req.amount} USDC",
+            note=f"{label}: paid {paid} USDC -> {credited} credits",
             message_from=req.wallet,
             message_to=_CREDIT_TREASURY,
         ),
     )
-    return {"topped_up": True, "tx_hash": tx_hash, **_credit_view(acct)}
+    return {
+        "topped_up": True,
+        "tx_hash": tx_hash,
+        "paid_usdc": str(paid),
+        "credited": str(credited),
+        **_credit_view(acct),
+    }
 
 
 @app.post("/credits/spend", tags=["primitives"])

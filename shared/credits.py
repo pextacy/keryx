@@ -16,10 +16,48 @@ from dataclasses import dataclass, field
 from decimal import ROUND_DOWN, Decimal
 
 _UNIT = Decimal("0.000001")
+_BPS = Decimal(10_000)
 
 
 class CreditError(Exception):
-    """Invalid credit operation (non-positive amount, insufficient balance)."""
+    """Invalid credit operation (non-positive amount, insufficient balance, unknown tier)."""
+
+
+@dataclass(frozen=True)
+class CreditTier:
+    """A purchasable credit package: pay ``usdc``, receive a bonus on top (bulk discount).
+
+    arc-commerce credits 1:1 with USDC; tiers add a volume bonus so larger top-ups earn more
+    spendable credits per dollar — the standard prepaid-package incentive.
+    """
+
+    name: str
+    usdc: Decimal
+    bonus_bps: int  # bonus credits in basis points (e.g. 1000 = +10%)
+
+    def credits(self) -> Decimal:
+        """Credits granted: the paid USDC plus the tier bonus, quantized to 6-dp."""
+        gross = self.usdc * (Decimal(1) + Decimal(self.bonus_bps) / _BPS)
+        return gross.quantize(_UNIT, rounding=ROUND_DOWN)
+
+
+# Predefined packages (amounts are test-USDC scale). Larger packages give a bigger bonus.
+CREDIT_TIERS: tuple[CreditTier, ...] = (
+    CreditTier("starter", Decimal("0.01"), 0),
+    CreditTier("plus", Decimal("0.05"), 500),
+    CreditTier("pro", Decimal("0.10"), 1000),
+    CreditTier("scale", Decimal("0.50"), 2000),
+)
+
+
+def tier_by_name(name: str) -> CreditTier:
+    """Resolve a tier by name (case-insensitive). Raises CreditError if unknown."""
+    key = name.strip().lower()
+    for tier in CREDIT_TIERS:
+        if tier.name == key:
+            return tier
+    known = ", ".join(t.name for t in CREDIT_TIERS)
+    raise CreditError(f"unknown tier {name!r}; expected one of {known}")
 
 
 class EntryKind(enum.Enum):
