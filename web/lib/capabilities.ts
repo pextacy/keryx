@@ -287,6 +287,20 @@ export interface EscrowResponse {
   error?: string;
 }
 
+// Unified settlement history (GET /history).
+export interface Settlement {
+  seq: number;
+  kind: string;
+  amount: string;
+  wallet: string;
+  tx_hash: string | null;
+}
+
+export interface HistoryResponse {
+  count: number;
+  settlements: Settlement[];
+}
+
 // Agent-tool manifest (GET /agent/tools) — primitives as tool-use schemas.
 export interface AgentTool {
   name: string;

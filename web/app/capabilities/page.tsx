@@ -4,6 +4,7 @@ import { CapabilityIndexPanel } from "./_panels/CapabilityIndexPanel";
 import { AgentToolsPanel } from "./_panels/AgentToolsPanel";
 import { TractionPanel } from "./_panels/TractionPanel";
 import { MetricsPanel } from "./_panels/MetricsPanel";
+import { HistoryPanel } from "./_panels/HistoryPanel";
 import { SendPanel } from "./_panels/SendPanel";
 import { PayoutPanel } from "./_panels/PayoutPanel";
 import { BondPanel } from "./_panels/BondPanel";
@@ -45,6 +46,10 @@ export default function CapabilitiesPage() {
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <TractionPanel />
         <MetricsPanel />
+      </div>
+
+      <div className="mt-6">
+        <HistoryPanel />
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
