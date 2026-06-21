@@ -271,11 +271,12 @@ def _sample_ported_round(seed: int) -> None:
         )
         if tx is not None:
             _requests.settled(share, tx)
-    # Prepaid credits: top up (settles to the treasury) then draw down.
-    topup_tx = _settle_to(f"demo-credits:{seed}", _CREDIT_TREASURY, Decimal("0.003"), kind="topup")
+    # Prepaid credits: top up a tier (bonus credits) — settles to the treasury, then draw down.
+    tier = tier_by_name("plus")
+    topup_tx = _settle_to(f"demo-credits:{seed}", _CREDIT_TREASURY, tier.usdc, kind="topup")
     if topup_tx is not None:
-        _credits.credit(w(seed + 16), Decimal("0.003"), topup_tx)
-        _treasury.deposit(Decimal("0.003"), w(seed + 16), topup_tx)
+        _credits.credit(w(seed + 16), tier.credits(), topup_tx)  # bonus-inflated
+        _treasury.deposit(tier.usdc, w(seed + 16), topup_tx)
         _credits.spend(w(seed + 16), Decimal("0.001"), "demo-citation")
     # Approved workflow: approve a one-action batch and execute it in order.
     args: dict[str, object] = {"to": w(seed + 17), "amount": "0.002", "kind": "workflow"}
@@ -291,6 +292,14 @@ def _sample_ported_round(seed: int) -> None:
         sp_tx = _settle_to(f"demo-gwspend:{seed}", w(seed + 19), spend_amt, kind="gateway_spend")
         if sp_tx is not None:
             _gateway.settled_spend(w(seed + 18), spend_amt)
+    # Milestone escrow: open a 2-tranche agreement and release the first milestone.
+    escrow = _escrows.create(
+        w(seed + 12), w(seed + 13), [("draft", Decimal("0.002")), ("final", Decimal("0.003"))]
+    )
+    milestone = _escrows.prepare_release(escrow.id, 0)
+    esc_tx = _settle_to(f"demo-escrow:{seed}", escrow.provider, milestone.amount, kind="escrow")
+    if esc_tx is not None:
+        _escrows.released(milestone, esc_tx)
 
 
 def _embedder_status() -> dict[str, Any]:
