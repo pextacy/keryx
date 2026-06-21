@@ -42,6 +42,7 @@ from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
 from shared.credits import CreditBook, CreditError
+from shared.gateway import SUPPORTED_CHAINS, GatewayBook, GatewayError, normalize_chain
 from shared.memo import Memo, build_memo
 from shared.p2p import RequestBook, RequestError
 from shared.qf import Project, quadratic_match
@@ -182,6 +183,9 @@ _requests = RequestBook()
 # Prepaid credits (ported from circlefin/arc-commerce): top up USDC once into a balance, then
 # draw it down per action — batches many micro-tolls into one settlement.
 _credits = CreditBook()
+# Gateway unified balance (ported from circlefin/arc-multichain-wallet): deposit USDC from
+# multiple source chains into one Arc-spendable balance.
+_gateway = GatewayBook()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -1356,6 +1360,70 @@ def credits_balance(wallet: str) -> dict[str, Any]:
     return {"found": True, **_credit_view(acct)}
 
 
+# --- Gateway unified balance (arc-multichain-wallet cross-chain deposit) ---
+
+# Gateway contract that receives cross-chain deposits (deterministic demo address offline).
+_GATEWAY_WALLET = _demo_wallet(1)
+
+
+class GatewayDeposit(BaseModel):
+    wallet: str = Field(description="0x wallet whose unified balance is credited")
+    chain: str = Field(
+        default="arcTestnet", description=f"Source chain ({', '.join(SUPPORTED_CHAINS)})"
+    )
+    amount: Decimal = Field(gt=0, description="USDC to deposit from the source chain")
+
+    @field_validator("wallet")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+def _gateway_view(acct: Any) -> dict[str, Any]:
+    return {
+        "wallet": acct.wallet,
+        "balance": str(acct.balance),
+        "by_chain": {c: str(a) for c, a in acct.by_chain.items()},
+        "deposits": [
+            {"chain": d.chain, "amount": str(d.amount), "tx_hash": d.tx_hash} for d in acct.deposits
+        ],
+    }
+
+
+@app.get("/gateway/chains", tags=["primitives"])
+def gateway_chains() -> dict[str, Any]:
+    """The source chains a Gateway deposit can originate from (arc-multichain-wallet)."""
+    return {"chains": list(SUPPORTED_CHAINS)}
+
+
+@app.post("/gateway/deposit", tags=["primitives"])
+def gateway_deposit(req: GatewayDeposit) -> dict[str, Any]:
+    """Deposit USDC from a source chain into the wallet's unified Gateway balance (ported from
+    circlefin/arc-multichain-wallet). The cross-chain move is mocked; settles to the gateway."""
+    try:
+        chain = normalize_chain(req.chain)
+    except GatewayError as exc:
+        return {"error": str(exc), "wallet": req.wallet}
+    tx_hash = _settle_to(
+        f"gateway:{req.wallet}:{chain}", _GATEWAY_WALLET, req.amount, kind="deposit"
+    )
+    if tx_hash is None:
+        return {"error": "settlement_failed", "wallet": req.wallet}
+    acct = _gateway.deposit(req.wallet, chain, req.amount, tx_hash)
+    return {"deposited": True, "chain": chain, "tx_hash": tx_hash, **_gateway_view(acct)}
+
+
+@app.get("/gateway/{wallet}", tags=["primitives"])
+def gateway_balance(wallet: str) -> dict[str, Any]:
+    """Read a wallet's unified Gateway balance and its per-chain deposit breakdown."""
+    acct = _gateway.get(wallet)
+    if acct is None:
+        return {"found": False, "wallet": wallet, "balance": "0"}
+    return {"found": True, **_gateway_view(acct)}
+
+
 @app.get("/balance", tags=["ledger-ops"])
 def balance() -> dict[str, Any]:
     """Unified balance — one aggregated view of the agent's economic state across every book
@@ -1366,6 +1434,7 @@ def balance() -> dict[str, Any]:
         "credits": _credits.summary(),
         "requests": _requests.summary(),
         "treasury": _treasury_view(),
+        "gateway": _gateway.summary(),
     }
 
 
@@ -1491,7 +1560,7 @@ def demo_reset() -> dict[str, Any]:
 
     Does NOT touch the citation ledger or any chain state — only the primitive sandboxes."""
     global traction, bonds, streams, _demo_offset
-    global _credits, _requests, _workflows, _treasury
+    global _credits, _requests, _workflows, _treasury, _gateway
     traction = TractionBook()
     bonds = BondBook()
     streams = StreamBook()
@@ -1499,6 +1568,7 @@ def demo_reset() -> dict[str, Any]:
     _requests = RequestBook()
     _workflows = WorkflowManager()
     _treasury = Treasury(wallet=_CREDIT_TREASURY)
+    _gateway = GatewayBook()
     _memos.clear()
     _memo_objs.clear()
     _sends.clear()
@@ -1538,6 +1608,7 @@ def _books_summary() -> dict[str, Any]:
             "sweepable": _treasury.sweepable(settings.treasury_sweep_threshold),
         },
         "workflows": _workflows.summary(),
+        "gateway": _gateway.summary(),
         "memos": len(_memo_objs),
         "sends": len(_sends),
     }
