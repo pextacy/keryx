@@ -116,6 +116,19 @@ curl -s localhost:8000/attestation/verify -H 'content-type: application/json' -d
 
 A paste-and-verify UI is the web **`/audit`** page.
 
+## Send with a memo — provenance travels with the payment
+
+`POST /send` — a plain USDC transfer whose memo carries *why* it was paid (a citation URL, an
+attestation hash, a job id); `GET /memo/{tx_hash}` reads it back. Inspired by
+`circlefin/recibo` + the Arc "Send USDC with a memo" quickstart (on-chain this is the transfer
+memo field).
+
+```bash
+TX=$(curl -s localhost:8000/send -H 'content-type: application/json' \
+  -d '{"to":"0xa...a","amount":"0.01","memo":"grounded: https://example.com/post"}' | jq -r .tx_hash)
+curl -s localhost:8000/memo/$TX     # -> {"found": true, "memo": "grounded: https://…"}
+```
+
 ## Traction — settled volume across every primitive
 
 `GET /traction` rolls up volume + payment count by primitive (the 30%-weighted judging axis).
@@ -131,9 +144,11 @@ Generate volume with the fleet (agents are the users):
 python -m agent.capabilities_fleet --rounds 20    # drives every primitive against the agent
 ```
 
-`GET /status` is a one-call dashboard bootstrap (live rail/embedder/LLM, capability flags,
-traction + citation metrics). `GET /reconcile` checks the off-chain ledger against chain
-(matched vs unverified, reconciled total) when `KERYX_LEDGER_VERIFY_CHAIN` is on.
+`POST /demo/run {rounds}` generates sample volume server-side (runs every primitive N rounds)
+— the dashboard's "Generate sample volume" button. `GET /status` is a one-call dashboard
+bootstrap (live rail/embedder/LLM, capability flags, traction + citation metrics).
+`GET /reconcile` checks the off-chain ledger against chain (matched vs unverified, reconciled
+total) when `KERYX_LEDGER_VERIFY_CHAIN` is on.
 
 ```bash
 curl -s localhost:8000/status     | jq '{rail, traction: .traction.total_volume_usdc}'

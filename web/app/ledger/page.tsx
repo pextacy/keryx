@@ -25,6 +25,7 @@ interface Row {
 export default function LedgerPage() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  const [chainVerified, setChainVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function LedgerPage() {
         if (!r.ok) throw new Error(data.message ?? "failed");
         setMetrics(data.metrics);
         setRows(data.recent ?? []);
+        setChainVerified(Boolean(data.chain_verified));
       } catch (err) {
         setError((err as Error).message);
       }
@@ -46,7 +48,14 @@ export default function LedgerPage() {
 
   return (
     <main className="mx-auto max-w-4xl p-8">
-      <h1 className="text-2xl font-semibold">Settlement ledger</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-semibold">Settlement ledger</h1>
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs ${chainVerified ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}
+        >
+          {chainVerified ? "chain-verified" : "mirror (chain verify off)"}
+        </span>
+      </div>
       <p className="mt-1 text-sm text-gray-500">
         Mirrors on-chain settlement — chain is canonical. Team vs external volume labeled.
       </p>
