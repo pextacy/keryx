@@ -39,6 +39,7 @@ from agent.ledger_verify import annotate_recent
 from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
+from shared.agent_tools import manifest as agent_tool_manifest
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.capability_index import index as capability_index
 from shared.config import settings
@@ -344,6 +345,14 @@ def capabilities() -> dict[str, Any]:
     """A machine-readable index of every capability — endpoints, category, and the Circle
     upstream it's ported from (where applicable). One source of truth for the dashboard."""
     return capability_index()
+
+
+@app.get("/agent/tools", tags=["ops"])
+def agent_tools() -> dict[str, Any]:
+    """Keryx's primitives as agent tools — name, description, and input_schema in the standard
+    tool-use shape (Claude Agent SDK / OpenAI function-calling), each mapped to its HTTP route.
+    Lets another agent discover and invoke Keryx with JSON (circlefin/agent-stack-starter-kits)."""
+    return agent_tool_manifest()
 
 
 @app.get("/config", tags=["ops"])
