@@ -278,6 +278,14 @@ def _sample_ported_round(seed: int) -> None:
     action = _workflows.check(wfid, "settle", args)
     wf_tx = _settle_to(f"demo-workflow:{seed}", w(seed + 17), Decimal("0.002"), kind="workflow")
     _workflows.complete(wfid, action, wf_tx or "", ok=wf_tx is not None)
+    # Gateway: deposit from a source chain into the unified balance, then spend part on Arc.
+    dep_tx = _settle_to(f"demo-gateway:{seed}", _GATEWAY_WALLET, Decimal("0.004"), kind="deposit")
+    if dep_tx is not None:
+        _gateway.deposit(w(seed + 18), "avalancheFuji", Decimal("0.004"), dep_tx)
+        spend_amt = _gateway.prepare_spend(w(seed + 18), Decimal("0.002"))
+        sp_tx = _settle_to(f"demo-gwspend:{seed}", w(seed + 19), spend_amt, kind="gateway_spend")
+        if sp_tx is not None:
+            _gateway.settled_spend(w(seed + 18), spend_amt)
 
 
 def _embedder_status() -> dict[str, Any]:

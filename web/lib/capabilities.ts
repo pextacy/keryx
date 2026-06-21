@@ -143,6 +143,9 @@ export interface GatewayResponse {
   by_chain?: Record<string, string>;
   deposits?: GatewayDeposit[];
   deposited?: boolean;
+  spent?: boolean;
+  amount?: string;
+  to?: string;
   chain?: string;
   tx_hash?: string;
   error?: string;
@@ -175,6 +178,7 @@ export interface BalanceResponse {
   credits: { accounts: number; outstanding_usdc: string };
   requests: { total: number; open: number; outstanding_usdc: string };
   treasury?: { wallet: string; balance: string; sweepable: boolean; threshold: string };
+  gateway?: { accounts: number; unified_usdc: string };
 }
 
 // Prepaid credits (arc-commerce buy-credits-with-USDC).
@@ -349,6 +353,7 @@ export interface StatusResponse {
     requests: { total: number; open: number; outstanding_usdc: string };
     treasury: { balance_usdc: string; flows: number; sweepable: boolean };
     workflows: { total: number; active: number };
+    gateway: { accounts: number; unified_usdc: string };
     memos: number;
     sends: number;
   };

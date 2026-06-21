@@ -50,7 +50,8 @@ export function StatusHeader() {
           <span className="mx-1 text-gray-300">|</span>
           <span className="text-xs text-gray-500">
             {s.books.credits.outstanding_usdc} credits · {s.books.requests.open} open req ·{" "}
-            {s.books.treasury.balance_usdc} treasury · {s.books.memos} memos
+            {s.books.treasury.balance_usdc} treasury · {s.books.gateway.unified_usdc} gateway ·{" "}
+            {s.books.memos} memos
           </span>
         </>
       )}

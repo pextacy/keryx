@@ -19,6 +19,8 @@ const KIND_LABEL: Record<string, string> = {
   topup: "Prepaid credit top-ups",
   workflow: "Approved workflows",
   sweep: "Treasury sweeps",
+  deposit: "Gateway deposits",
+  gateway_spend: "Gateway spends",
 };
 
 // Relative share of total volume for one kind — a horizontal bar (no time series exists,
@@ -129,6 +131,12 @@ export function TractionPanel() {
                   <span className="text-xs text-gray-500">
                     treasury{bal.treasury.sweepable ? " (sweepable)" : ""}
                   </span>
+                </div>
+              )}
+              {bal.gateway && (
+                <div>
+                  <span className="font-semibold text-gray-700">{bal.gateway.unified_usdc}</span>{" "}
+                  <span className="text-xs text-gray-500">gateway unified</span>
                 </div>
               )}
             </div>

@@ -16,6 +16,8 @@ export function GatewayPanel() {
   const [wallet, setWallet] = useState("0x" + "a".repeat(40));
   const [chain, setChain] = useState<(typeof CHAINS)[number]>("avalancheFuji");
   const [amount, setAmount] = useState("0.5");
+  const [spendTo, setSpendTo] = useState("0x" + "c".repeat(40));
+  const [spendAmt, setSpendAmt] = useState("0.2");
   const [acct, setAcct] = useState<GatewayResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,6 +31,27 @@ export function GatewayPanel() {
       else {
         setAcct(r);
         if (r.deposited) notify(`Deposited ${amount} from ${chain}`, r.tx_hash);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function spend() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await postJson<GatewayResponse>("/api/gateway/spend", {
+        wallet,
+        to: spendTo,
+        amount: spendAmt,
+      });
+      if (r.error) setError(r.error);
+      else {
+        setAcct(r);
+        if (r.spent) notify(`Spent ${r.amount} from unified balance`, r.tx_hash);
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -100,6 +123,31 @@ export function GatewayPanel() {
           <div className="mt-4 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-green-700">{acct.balance}</span>
             <span className="text-sm text-gray-500">USDC unified</span>
+          </div>
+
+          <div className="mt-3 flex items-end gap-2">
+            <Field label="Spend to (Arc)">
+              <input
+                value={spendTo}
+                onChange={(e) => setSpendTo(e.target.value)}
+                className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              />
+            </Field>
+            <Field label="Amount">
+              <input
+                value={spendAmt}
+                onChange={(e) => setSpendAmt(e.target.value)}
+                className="w-20 rounded border border-gray-300 px-2 py-1 font-mono"
+              />
+            </Field>
+            <button
+              type="button"
+              onClick={() => void spend()}
+              disabled={busy || Number(acct.balance) <= 0}
+              className="mb-1 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Spend
+            </button>
           </div>
 
           {acct.by_chain && Object.keys(acct.by_chain).length > 0 && (
