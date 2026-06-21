@@ -87,6 +87,25 @@ class GatewayBook:
         acct.deposits.append(Deposit(chain=canonical, amount=amt, tx_hash=tx_hash))
         return acct
 
+    def prepare_spend(self, wallet: str, amount: Decimal) -> Decimal:
+        """Validate a spend against the unified balance without mutating it (chain-abstracted
+        ``kit.unifiedBalance.spend``). Raises GatewayError if insufficient. Returns the amount."""
+        if amount <= 0:
+            raise GatewayError("spend amount must be positive")
+        acct = self.account(wallet)
+        amt = _q(amount)
+        if amt > acct.balance:
+            raise GatewayError(f"insufficient_balance: have {acct.balance}, need {amt}")
+        return amt
+
+    def settled_spend(self, wallet: str, amount: Decimal) -> UnifiedAccount:
+        """Draw the spent amount down from the unified balance (call after settlement succeeds)."""
+        acct = self.account(wallet)
+        acct.balance = _q(acct.balance - _q(amount))
+        if acct.balance < 0:
+            acct.balance = Decimal(0)
+        return acct
+
     def summary(self) -> dict[str, object]:
         """Aggregate unified position: total balance and account count across the gateway."""
         total = sum((a.balance for a in self._accounts.values()), Decimal(0))

@@ -1415,6 +1415,52 @@ def gateway_deposit(req: GatewayDeposit) -> dict[str, Any]:
     return {"deposited": True, "chain": chain, "tx_hash": tx_hash, **_gateway_view(acct)}
 
 
+class GatewaySpend(BaseModel):
+    wallet: str = Field(description="0x wallet spending from its unified balance")
+    to: str = Field(description="0x recipient on Arc")
+    amount: Decimal = Field(gt=0, description="USDC to spend from the unified balance")
+
+    @field_validator("wallet", "to")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+@app.post("/gateway/spend", tags=["primitives"])
+def gateway_spend(req: GatewaySpend) -> dict[str, Any]:
+    """Spend from a wallet's unified Gateway balance to a recipient on Arc (chain-abstracted
+    ``kit.unifiedBalance.spend``). Settles via the rail, then draws the balance down; errors
+    with insufficient_balance if the unified pool is too low. Nothing is drawn if settlement
+    fails (two-step prepare/settled)."""
+    try:
+        amount = _gateway.prepare_spend(req.wallet, req.amount)
+    except GatewayError as exc:
+        return {"error": str(exc), "wallet": req.wallet}
+    tx_hash = _settle_to(f"gateway-spend:{req.wallet}", req.to, amount, kind="gateway_spend")
+    if tx_hash is None:
+        return {"error": "settlement_failed", "wallet": req.wallet}
+    acct = _gateway.settled_spend(req.wallet, amount)
+    _record_memo(
+        tx_hash,
+        build_memo(
+            kind="other",
+            ref="gateway-spend",
+            note=f"spent {amount} USDC from unified balance",
+            message_from=req.wallet,
+            message_to=req.to,
+        ),
+    )
+    return {
+        "spent": True,
+        "amount": str(amount),
+        "to": req.to,
+        "tx_hash": tx_hash,
+        **_gateway_view(acct),
+    }
+
+
 @app.get("/gateway/{wallet}", tags=["primitives"])
 def gateway_balance(wallet: str) -> dict[str, Any]:
     """Read a wallet's unified Gateway balance and its per-chain deposit breakdown."""
