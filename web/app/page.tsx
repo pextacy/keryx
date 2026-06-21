@@ -1,10 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ARC_EXPLORER_TX, type AskResponse } from "@/lib/types";
 import { Copy } from "./Copy";
 
+type Activity = { settlements: number; volume_usdc: string };
+
 export default function Home() {
+  const [activity, setActivity] = useState<Activity | null>(null);
+
+  useEffect(() => {
+    fetch("/api/healthz", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => b?.activity && setActivity(b.activity))
+      .catch(() => {});
+  }, []);
+
   const [query, setQuery] = useState(
     "How do Gateway nanopayments settle sub-cent USDC on Arc?",
   );
@@ -69,6 +80,21 @@ export default function Home() {
           Audit an attestation
         </a>
       </div>
+
+      {activity && (
+        <div className="mt-4 flex gap-6 rounded-lg border border-gray-200 p-3">
+          <div>
+            <div className="text-xl font-semibold text-green-700">
+              {activity.volume_usdc} <span className="text-sm font-normal text-gray-500">USDC</span>
+            </div>
+            <div className="text-xs text-gray-500">settled across every primitive</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{activity.settlements}</div>
+            <div className="text-xs text-gray-500">payments</div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={ask} className="mt-6 flex gap-2">
         <input
