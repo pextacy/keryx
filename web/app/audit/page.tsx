@@ -1,13 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { errorMessage, postJson } from "@/lib/api";
+import { errorMessage, getJson, postJson } from "@/lib/api";
 
 interface VerifyResult {
   verified: boolean;
   agent_pubkey: string;
   query_hash: string;
   citations: number;
+}
+
+interface MemoResult {
+  tx_hash: string;
+  found: boolean;
+  memo: string | null;
 }
 
 const PLACEHOLDER = `{
@@ -24,6 +30,8 @@ export default function AuditPage() {
   const [res, setRes] = useState<VerifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tx, setTx] = useState("");
+  const [memo, setMemo] = useState<MemoResult | null>(null);
 
   async function verify() {
     setBusy(true);
@@ -36,6 +44,16 @@ export default function AuditPage() {
       setError(err instanceof SyntaxError ? "Invalid JSON" : errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function lookupMemo() {
+    setError(null);
+    setMemo(null);
+    try {
+      setMemo(await getJson<MemoResult>(`/api/memo/${encodeURIComponent(tx.trim())}`));
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -75,6 +93,32 @@ export default function AuditPage() {
             <div>citations: {res.citations}</div>
           </dl>
         </div>
+      )}
+
+      <h2 className="mt-10 text-lg font-medium">Memo lookup</h2>
+      <p className="mt-1 text-sm text-gray-500">
+        Read the provenance memo bound to a settlement (why a payment was made).
+      </p>
+      <div className="mt-3 flex gap-2">
+        <input
+          value={tx}
+          onChange={(e) => setTx(e.target.value)}
+          placeholder="0x tx hash"
+          className="flex-1 rounded border border-gray-300 px-3 py-2 font-mono text-xs"
+        />
+        <button
+          type="button"
+          onClick={lookupMemo}
+          disabled={!tx.trim()}
+          className="rounded border px-4 py-2 disabled:opacity-40"
+        >
+          Look up
+        </button>
+      </div>
+      {memo && (
+        <p className="mt-3 rounded border border-gray-200 p-3 text-sm">
+          {memo.found ? memo.memo : <span className="text-gray-400">no memo for this tx</span>}
+        </p>
       )}
     </main>
   );

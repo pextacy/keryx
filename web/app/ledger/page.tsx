@@ -77,6 +77,7 @@ export default function LedgerPage() {
             <th>g</th>
             <th>Amount</th>
             <th>Who</th>
+            <th>When</th>
             <th>Tx</th>
           </tr>
         </thead>
@@ -91,6 +92,7 @@ export default function LedgerPage() {
                   {r.external ? "external" : "team"}
                 </span>
               </td>
+              <td className="text-gray-400">{ago(r.ts)}</td>
               <td>
                 <a
                   href={ARC_EXPLORER_TX + r.tx_hash}
@@ -104,7 +106,7 @@ export default function LedgerPage() {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={5} className="py-6 text-center text-gray-400">
+              <td colSpan={6} className="py-6 text-center text-gray-400">
                 No settlements yet — ask a question on the home page.
               </td>
             </tr>
@@ -113,6 +115,13 @@ export default function LedgerPage() {
       </table>
     </main>
   );
+}
+
+function ago(ts: number): string {
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
