@@ -47,6 +47,7 @@ from shared.credits import CREDIT_TIERS, CreditBook, CreditError, tier_by_name
 from shared.escrow import EscrowBook, EscrowError
 from shared.gateway import SUPPORTED_CHAINS, GatewayBook, GatewayError, normalize_chain
 from shared.memo import Memo, build_memo
+from shared.orders import OrderBook, OrderError
 from shared.p2p import RequestBook, RequestError
 from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
@@ -192,6 +193,9 @@ _gateway = GatewayBook()
 # Milestone escrow (ported from circlefin/arc-escrow): a total locked across tranches that
 # release to the provider on approval.
 _escrows = EscrowBook()
+# Multi-item orders (ported from circlefin/arc-commerce checkout): bundle line-items paying
+# different recipients into one order, settled together at checkout.
+_orders = OrderBook()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -1647,6 +1651,91 @@ def get_escrow(eid: str) -> dict[str, Any]:
     return {"found": True, **_escrow_view(esc)}
 
 
+# --- Multi-item orders (arc-commerce checkout) ---
+
+
+class LineItemInput(BaseModel):
+    description: str = Field(min_length=1, max_length=120, description="What this line pays for")
+    to: str = Field(description="0x recipient of this line-item")
+    amount: Decimal = Field(gt=0, description="USDC for this line-item")
+
+    @field_validator("to")
+    @classmethod
+    def _check_to(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+class OrderCreate(BaseModel):
+    items: list[LineItemInput] = Field(min_length=1, description="Order line-items")
+
+
+def _order_view(order: Any) -> dict[str, Any]:
+    return {
+        "id": order.id,
+        "total": str(order.total),
+        "paid": str(order.paid_total()),
+        "status": order.status.value,
+        "items": [
+            {
+                "description": i.description,
+                "to": i.to,
+                "amount": str(i.amount),
+                "tx_hash": i.tx_hash,
+            }
+            for i in order.items
+        ],
+    }
+
+
+@app.post("/order", tags=["primitives"])
+def create_order(req: OrderCreate) -> dict[str, Any]:
+    """Open a multi-item order — bundle line-items paying different recipients into one purchase
+    (ported from circlefin/arc-commerce checkout). Settle them together via /order/{id}/checkout."""
+    try:
+        order = _orders.create([(i.description, i.to, i.amount) for i in req.items])
+    except OrderError as exc:
+        return {"error": str(exc)}
+    return _order_view(order)
+
+
+@app.post("/order/{oid}/checkout", tags=["primitives"])
+def checkout_order(oid: str) -> dict[str, Any]:
+    """Check out an order — settle every line-item to its recipient via the rail in one call.
+    Returns per-item tx hashes; status is ``paid`` (all settled) or ``partial`` (some failed)."""
+    order = _orders.get(oid)
+    if order is None:
+        return {"found": False, "id": oid}
+    try:
+        order = _orders.begin_checkout(oid)
+    except OrderError as exc:
+        return {"error": str(exc), "id": oid}
+    for idx, item in enumerate(order.items):
+        tx_hash = _settle_to(f"order:{oid}:{idx}", item.to, item.amount, kind="order")
+        if tx_hash is not None:
+            item.tx_hash = tx_hash
+            _record_memo(
+                tx_hash,
+                build_memo(
+                    kind="invoice",
+                    ref=f"{oid}#{idx}",
+                    note=item.description,
+                    message_to=item.to,
+                ),
+            )
+    return {"checked_out": True, **_order_view(order)}
+
+
+@app.get("/order/{oid}", tags=["primitives"])
+def get_order(oid: str) -> dict[str, Any]:
+    """Read an order — total, paid, and per-line-item status."""
+    order = _orders.get(oid)
+    if order is None:
+        return {"found": False, "id": oid}
+    return {"found": True, **_order_view(order)}
+
+
 @app.get("/balance", tags=["ledger-ops"])
 def balance() -> dict[str, Any]:
     """Unified balance — one aggregated view of the agent's economic state across every book
@@ -1823,7 +1912,7 @@ def demo_reset() -> dict[str, Any]:
 
     Does NOT touch the citation ledger or any chain state — only the primitive sandboxes."""
     global traction, bonds, streams, _demo_offset
-    global _credits, _requests, _workflows, _treasury, _gateway, _escrows
+    global _credits, _requests, _workflows, _treasury, _gateway, _escrows, _orders
     traction = TractionBook()
     bonds = BondBook()
     streams = StreamBook()
@@ -1833,6 +1922,7 @@ def demo_reset() -> dict[str, Any]:
     _treasury = Treasury(wallet=_CREDIT_TREASURY)
     _gateway = GatewayBook()
     _escrows = EscrowBook()
+    _orders = OrderBook()
     _memos.clear()
     _memo_objs.clear()
     _sends.clear()
@@ -1874,6 +1964,7 @@ def _books_summary() -> dict[str, Any]:
         "workflows": _workflows.summary(),
         "gateway": _gateway.summary(),
         "escrow": _escrows.summary(),
+        "orders": _orders.summary(),
         "memos": len(_memo_objs),
         "sends": len(_sends),
     }

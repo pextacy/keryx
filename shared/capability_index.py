@@ -103,6 +103,13 @@ CAPABILITIES: tuple[Capability, ...] = (
         upstream="arc-commerce",
     ),
     Capability(
+        "Multi-item order checkout",
+        "settlement",
+        ("POST /order", "POST /order/{id}/checkout"),
+        "Bundle line-items paying different recipients into one order, settled at checkout.",
+        upstream="arc-commerce",
+    ),
+    Capability(
         "Approved-action workflow",
         "settlement",
         ("POST /workflow/approve", "POST /workflow/{id}/execute"),
