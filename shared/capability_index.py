@@ -145,7 +145,7 @@ CAPABILITIES: tuple[Capability, ...] = (
         ("POST /refund/{tx}",),
         "Refund to the address bound at send, with a dispute reason.",
         upstream="refund-protocol",
-        example="curl -s localhost:8000/refund/0x<tx> -d '{\"reason\":\"not_delivered\"}' -H content-type:application/json",
+        example='curl -s localhost:8000/refund/0x<tx> -d \'{"reason":"not_delivered"}\' -H content-type:application/json',
     ),
     Capability(
         "Treasury + sweep",

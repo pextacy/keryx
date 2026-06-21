@@ -71,9 +71,7 @@ class TractionBook:
             stat.count += 1
             stat.volume += s.amount
         ordered = sorted(rollup.items(), key=lambda kv: kv[1].count, reverse=True)
-        return [
-            {"kind": k, "count": v.count, "volume_usdc": str(v.volume)} for k, v in ordered
-        ]
+        return [{"kind": k, "count": v.count, "volume_usdc": str(v.volume)} for k, v in ordered]
 
     def recent(self, limit: int = 50, kind: str = "") -> list[dict[str, object]]:
         """Recent settlements (most recent first), optionally filtered by ``kind``."""
