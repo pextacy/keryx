@@ -129,11 +129,33 @@ export interface WorkflowResponse {
   actions?: WorkflowAction[];
 }
 
+// Treasury (arc-fintech) — accumulated inflows + sweep flows.
+export interface TreasuryFlow {
+  kind: string;
+  amount: string;
+  counterparty: string;
+  tx_hash: string | null;
+}
+
+export interface TreasuryResponse {
+  wallet: string;
+  balance: string;
+  sweepable: boolean;
+  threshold: string;
+  flows: TreasuryFlow[];
+  swept?: boolean;
+  amount?: string;
+  to?: string;
+  tx_hash?: string;
+  error?: string;
+}
+
 // Unified balance — aggregated economic state across the agent's books.
 export interface BalanceResponse {
   settled: TractionResponse;
   credits: { accounts: number; outstanding_usdc: string };
   requests: { total: number; open: number; outstanding_usdc: string };
+  treasury?: { wallet: string; balance: string; sweepable: boolean; threshold: string };
 }
 
 // Prepaid credits (arc-commerce buy-credits-with-USDC).

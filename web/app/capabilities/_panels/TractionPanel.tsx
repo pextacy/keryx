@@ -119,6 +119,14 @@ export function TractionPanel() {
                   open requests ({bal.requests.outstanding_usdc} due)
                 </span>
               </div>
+              {bal.treasury && (
+                <div>
+                  <span className="font-semibold text-gray-700">{bal.treasury.balance}</span>{" "}
+                  <span className="text-xs text-gray-500">
+                    treasury{bal.treasury.sweepable ? " (sweepable)" : ""}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

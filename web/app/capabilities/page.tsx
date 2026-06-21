@@ -16,6 +16,7 @@ import { MemoFeedPanel } from "./_panels/MemoFeedPanel";
 import { WorkflowPanel } from "./_panels/WorkflowPanel";
 import { RequestPanel } from "./_panels/RequestPanel";
 import { CreditsPanel } from "./_panels/CreditsPanel";
+import { TreasuryPanel } from "./_panels/TreasuryPanel";
 
 export default function CapabilitiesPage() {
   return (
@@ -42,6 +43,7 @@ export default function CapabilitiesPage() {
         <SwapPanel />
         <RequestPanel />
         <CreditsPanel />
+        <TreasuryPanel />
         <PayoutPanel />
         <BondPanel />
         <StreamPanel />
