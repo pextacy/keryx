@@ -899,6 +899,20 @@ def demo_run(req: DemoRequest) -> dict[str, Any]:
     return {"rounds": req.rounds, "traction": traction.summary()}
 
 
+@app.post("/demo/reset", tags=["ledger-ops"])
+def demo_reset() -> dict[str, Any]:
+    """Clear in-memory demo state (traction, bonds, streams, memos) for a clean walkthrough.
+
+    Does NOT touch the citation ledger or any chain state — only the primitive sandboxes."""
+    global traction, bonds, streams, _demo_offset
+    traction = TractionBook()
+    bonds = BondBook()
+    streams = StreamBook()
+    _memos.clear()
+    _demo_offset = 0
+    return {"reset": True, "traction": traction.summary()}
+
+
 @app.get("/status", tags=["ledger-ops"])
 def status() -> dict[str, Any]:
     """One-call dashboard bootstrap: live config + traction + citation metrics + which

@@ -42,6 +42,16 @@ export function TractionPanel() {
     }
   }, []);
 
+  const reset = useCallback(async () => {
+    setError(null);
+    try {
+      const r = await postJson<{ traction: TractionResponse }>("/api/demo/reset", {});
+      setData(r.traction);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -59,6 +69,9 @@ export function TractionPanel() {
           className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
         >
           {busy ? "Settling…" : "Generate sample volume"}
+        </button>
+        <button type="button" onClick={() => void reset()} className="rounded border px-3 py-1.5 text-sm">
+          Reset
         </button>
       </div>
 
