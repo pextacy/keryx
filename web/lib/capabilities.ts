@@ -129,6 +129,28 @@ export interface WorkflowResponse {
   actions?: WorkflowAction[];
 }
 
+// Split-bill money request (arc-p2p-payments "request money").
+export interface RequestShare {
+  payer: string;
+  amount: string;
+  paid: boolean;
+  tx_hash: string | null;
+}
+
+export interface RequestResponse {
+  found?: boolean;
+  id: string;
+  payee?: string;
+  total?: string;
+  status?: string;
+  collected?: string;
+  outstanding?: string;
+  shares?: RequestShare[];
+  settled?: boolean;
+  tx_hash?: string;
+  error?: string;
+}
+
 // Recibo-style structured memo envelope (kind/ref/note + metadata + routing).
 export interface MemoMeta {
   kind: string;

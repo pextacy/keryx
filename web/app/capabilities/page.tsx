@@ -14,6 +14,7 @@ import { JobEscrowPanel } from "./_panels/JobEscrowPanel";
 import { SwapPanel } from "./_panels/SwapPanel";
 import { MemoFeedPanel } from "./_panels/MemoFeedPanel";
 import { WorkflowPanel } from "./_panels/WorkflowPanel";
+import { RequestPanel } from "./_panels/RequestPanel";
 
 export default function CapabilitiesPage() {
   return (
@@ -38,6 +39,7 @@ export default function CapabilitiesPage() {
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <SendPanel />
         <SwapPanel />
+        <RequestPanel />
         <PayoutPanel />
         <BondPanel />
         <StreamPanel />
