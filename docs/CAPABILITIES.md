@@ -301,6 +301,19 @@ curl -s localhost:8000/escrow/$EID/release -H 'content-type: application/json' -
 curl -s localhost:8000/escrow/$EID   # -> {"status":"open","released":"0.010000","locked":"0.020000",...}
 ```
 
+## Recurring schedule — fixed amount per run for N runs (arc-fintech)
+
+A payer commits to pay a payee a fixed amount for a number of runs; each run settles one
+installment via the rail — the discrete subscription/payroll counterpart to streaming.
+
+```bash
+SID=$(curl -s localhost:8000/schedule -H 'content-type: application/json' \
+  -d '{"payer":"0xa...a","payee":"0xb...b","amount":"0.002","runs":3}' | jq -r .id)
+curl -s localhost:8000/schedule/$SID/run     # settle one installment; repeat per run
+curl -s localhost:8000/schedule/$SID/cancel  # stop further runs (paid runs stand)
+curl -s localhost:8000/schedule/$SID   # -> {"runs_done":1,"runs_left":2,"paid":"0.002000",...}
+```
+
 ## Confidential + threaded memos — recibo encrypt scheme + reply threads (recibo)
 
 Pass `confidential: true` on `/send` to mark a memo confidential (recibo's `encrypt` scheme):
@@ -328,7 +341,7 @@ and invoke Keryx with JSON — the `circlefin/agent-stack-starter-kits` idea.
 
 ```bash
 curl -s localhost:8000/capabilities | jq '{count, ported, by_category}'
-# -> {"count":20,"ported":13,"by_category":{"split":4,"settlement":8,...}}
+# -> {"count":21,"ported":14,"by_category":{"split":4,"settlement":9,...}}
 curl -s localhost:8000/agent/tools | jq '.tools[].name'   # ask, send_payment, swap_stablecoin, ...
 ```
 

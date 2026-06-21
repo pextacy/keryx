@@ -69,10 +69,11 @@ each the offline analogue of the upstream, settling through the same rail:
 | Treasury + sweep | `GET /treasury`, `POST /treasury/sweep` | `arc-fintech` |
 | Gateway unified balance | `POST /gateway/deposit`, `…/spend` | `arc-multichain-wallet` |
 | Milestone escrow | `POST /escrow`, `…/release` | `arc-escrow` |
+| Recurring schedule | `POST /schedule`, `…/run` | `arc-fintech` |
 | Agent-tool manifest | `GET /agent/tools`, `/capabilities` | `agent-stack-starter-kits` |
 
 Keryx is **agent-callable**: `GET /agent/tools` returns its primitives as tool-use schemas
-(Claude Agent SDK / OpenAI function-calling), and `GET /capabilities` indexes all 20 with
+(Claude Agent SDK / OpenAI function-calling), and `GET /capabilities` indexes all 21 with
 their provenance.
 
 ```bash

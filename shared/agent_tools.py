@@ -166,6 +166,20 @@ AGENT_TOOLS: tuple[AgentTool, ...] = (
         ("items",),
     ),
     AgentTool(
+        "create_schedule",
+        "Set up a recurring payment: a fixed amount paid to a payee for N runs (subscription / "
+        "payroll style). Advance each installment with a run. Use for repeating obligations.",
+        "POST",
+        "/schedule",
+        {
+            "payer": _wallet("Who commits to pay"),
+            "payee": _wallet("Who receives each installment"),
+            "amount": _usdc("Paid per run"),
+            "runs": {"type": "integer", "description": "Number of installments"},
+        },
+        ("payer", "payee", "amount", "runs"),
+    ),
+    AgentTool(
         "approve_workflow",
         "Approve a batch of settlement intents that then execute in order — nothing settles "
         "that wasn't approved. Use to plan and authorize a payment batch before executing it.",

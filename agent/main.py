@@ -321,6 +321,12 @@ def _sample_ported_round(seed: int) -> None:
         ord_tx = _settle_to(f"demo-order:{seed}:{idx}", item.to, item.amount, kind="order")
         if ord_tx is not None:
             item.tx_hash = ord_tx
+    # Recurring schedule: open a 3-run schedule and run the first installment.
+    schedule = _schedules.create(w(seed + 16), w(seed + 17), Decimal("0.001"), 3)
+    _schedules.prepare_run(schedule.id)
+    sch_tx = _settle_to(f"demo-schedule:{seed}", schedule.payee, schedule.amount, kind="schedule")
+    if sch_tx is not None:
+        _schedules.ran(schedule, sch_tx)
 
 
 def _embedder_status() -> dict[str, Any]:

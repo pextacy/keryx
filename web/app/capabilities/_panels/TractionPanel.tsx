@@ -154,6 +154,14 @@ export function TractionPanel() {
                   <span className="text-xs text-gray-500">orders ({bal.orders.pending} pending)</span>
                 </div>
               )}
+              {bal.schedules && bal.schedules.total > 0 && (
+                <div>
+                  <span className="font-semibold text-gray-700">{bal.schedules.committed_usdc}</span>{" "}
+                  <span className="text-xs text-gray-500">
+                    scheduled ({bal.schedules.active} active)
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

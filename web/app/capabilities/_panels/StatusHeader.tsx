@@ -52,7 +52,7 @@ export function StatusHeader() {
             {s.books.credits.outstanding_usdc} credits · {s.books.requests.open} open req ·{" "}
             {s.books.treasury.balance_usdc} treasury · {s.books.gateway.unified_usdc} gateway ·{" "}
             {s.books.escrow.locked_usdc} escrow · {s.books.orders.total} orders ·{" "}
-            {s.books.memos} memos
+            {s.books.schedules.active} schedules · {s.books.memos} memos
           </span>
         </>
       )}
