@@ -37,12 +37,7 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-3xl p-8">
-      <div className="flex items-baseline justify-between">
-        <h1 className="text-3xl font-semibold">Keryx</h1>
-        <a href="/capabilities" className="text-sm text-blue-600 underline">
-          Capabilities →
-        </a>
-      </div>
+      <h1 className="text-3xl font-semibold">Keryx</h1>
       <p className="mt-1 text-gray-500">
         Ask a question. Watch the agent pay every source it genuinely cites — live on Arc.
       </p>
