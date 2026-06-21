@@ -264,6 +264,28 @@ export interface MemoThreadResponse {
   replies?: MemoItem[];
 }
 
+// Milestone escrow (arc-escrow) — staged release.
+export interface EscrowMilestone {
+  label: string;
+  amount: string;
+  status: string;
+  tx_hash: string | null;
+}
+
+export interface EscrowResponse {
+  found?: boolean;
+  id: string;
+  client?: string;
+  provider?: string;
+  total?: string;
+  released?: boolean | string;
+  locked?: string;
+  status?: string;
+  milestones?: EscrowMilestone[];
+  tx_hash?: string;
+  error?: string;
+}
+
 // Machine-readable capability index (GET /capabilities).
 export interface CapabilityEntry {
   name: string;

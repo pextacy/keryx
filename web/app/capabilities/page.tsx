@@ -12,6 +12,7 @@ import { QfPanel } from "./_panels/QfPanel";
 import { RetroPanel } from "./_panels/RetroPanel";
 import { OnchainPanel } from "./_panels/OnchainPanel";
 import { JobEscrowPanel } from "./_panels/JobEscrowPanel";
+import { EscrowPanel } from "./_panels/EscrowPanel";
 import { SwapPanel } from "./_panels/SwapPanel";
 import { MemoFeedPanel } from "./_panels/MemoFeedPanel";
 import { WorkflowPanel } from "./_panels/WorkflowPanel";
@@ -53,6 +54,7 @@ export default function CapabilitiesPage() {
         <GatewayPanel />
         <PayoutPanel />
         <BondPanel />
+        <EscrowPanel />
         <StreamPanel />
         <RoyaltiesPanel />
         <QfPanel />

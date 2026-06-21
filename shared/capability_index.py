@@ -131,6 +131,13 @@ CAPABILITIES: tuple[Capability, ...] = (
         upstream="arc-multichain-wallet",
     ),
     Capability(
+        "Milestone escrow",
+        "settlement",
+        ("POST /escrow", "POST /escrow/{id}/release"),
+        "Lock a total across tranches; release each to the provider on approval.",
+        upstream="arc-escrow",
+    ),
+    Capability(
         "ERC-8183 job escrow",
         "onchain",
         ("GET /job/{id}",),
