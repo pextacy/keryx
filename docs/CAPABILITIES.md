@@ -125,8 +125,89 @@ memo field).
 
 ```bash
 TX=$(curl -s localhost:8000/send -H 'content-type: application/json' \
-  -d '{"to":"0xa...a","amount":"0.01","memo":"grounded: https://example.com/post"}' | jq -r .tx_hash)
-curl -s localhost:8000/memo/$TX     # -> {"found": true, "memo": "grounded: https://…"}
+  -d '{"to":"0xa...a","amount":"0.01","kind":"citation","ref":"https://example.com/post","memo":"g=0.91"}' | jq -r .tx_hash)
+curl -s localhost:8000/memo/$TX     # -> {"found": true, "memo": "...", "meta": {"kind":"citation","scheme":"plaintext",...}}
+curl -s 'localhost:8000/memos?kind=citation&limit=10'   # recibo-style receipt feed, filterable by kind
+```
+
+The memo is a structured **recibo envelope** (`kind`, `ref`, `note`, routing, `version`,
+`scheme`) ported from `circlefin/recibo`; `kind` is a small taxonomy
+(`citation|invoice|swap|refund|job|…`).
+
+## Stablecoin swap — USDC ↔ EURC (arc-stablecoin-fx)
+
+`POST /swap/quote` estimates, `POST /swap` executes: gross at the mock Arc FX rate less an app
+fee in bps (`KERYX_SWAP_APP_FEE_BPS`, default 30). Ported from `circlefin/arc-stablecoin-fx`
+(`estimateSwap`/`executeSwap` + `customFee`); the real on-chain path is `rail/appkit` `swapOnArc`.
+
+```bash
+curl -s localhost:8000/swap/quote -H 'content-type: application/json' \
+  -d '{"token_in":"USDC","token_out":"EURC","amount_in":"10"}'
+# -> {"amount_out":"9.172400","app_fee":"0.027600","app_fee_bps":30,"effective_rate":"0.917240"}
+curl -s localhost:8000/swap -H 'content-type: application/json' \
+  -d '{"token_in":"USDC","token_out":"EURC","amount_in":"10","to":"0xb...b"}'   # settles net to `to`
+```
+
+## Split-bill money request — request money, split across payers (arc-p2p-payments)
+
+`POST /request` opens a request: a payee asks payers to cover a total, split dust-free; each
+payer fulfils their share, which settles to the payee. Ported from `circlefin/arc-p2p-payments`.
+
+```bash
+RID=$(curl -s localhost:8000/request -H 'content-type: application/json' \
+  -d '{"payee":"0xe...e","payers":["0xa...a","0xb...b","0xd...d"],"total":"0.10"}' | jq -r .id)
+curl -s localhost:8000/request/$RID/fulfil -H 'content-type: application/json' -d '{"payer":"0xa...a"}'
+curl -s localhost:8000/request/$RID    # -> {"status":"open","collected":"0.033334","outstanding":"0.066666",...}
+```
+
+## Prepaid credits — top up once, draw down per action (arc-commerce)
+
+`POST /credits/topup` settles USDC to a treasury and credits a balance; `POST /credits/spend`
+draws it down per action (no further on-chain move) — batching micro-tolls into one settlement.
+Ported from `circlefin/arc-commerce`.
+
+```bash
+curl -s localhost:8000/credits/topup -H 'content-type: application/json' -d '{"wallet":"0xa...a","amount":"0.05"}'
+curl -s localhost:8000/credits/spend -H 'content-type: application/json' -d '{"wallet":"0xa...a","amount":"0.001","reason":"citation"}'
+curl -s localhost:8000/credits/0xa...a   # -> {"balance":"0.049000","entries":[{"kind":"topup",...},{"kind":"spend",...}]}
+# spending past the balance -> {"error":"insufficient_credits: have …, need …"}
+```
+
+## Approved settlements — intent → approve → execute (circle-ooak)
+
+A batch of settlement intents is approved once (→ `wfid`), then each executes only if it
+matches the approved next action, in order — nothing settles that wasn't approved. Ported from
+`circlefin/circle-ooak` (`secure_tool` + `WorkflowManager`).
+
+```bash
+WF=$(curl -s localhost:8000/workflow/approve -H 'content-type: application/json' \
+  -d '{"intents":[{"to":"0xa...a","amount":"0.01"},{"to":"0xb...b","amount":"0.02"}]}' | jq -r .wfid)
+curl -s localhost:8000/workflow/$WF/execute -H 'content-type: application/json' -d '{"to":"0xa...a","amount":"0.01"}'
+curl -s localhost:8000/workflow/$WF    # -> {"status":"approved","cursor":1,"remaining":1,"actions":[...]}
+# an out-of-order or unapproved execute -> {"error":"call does not match the approved next action ..."}
+```
+
+## Refund / dispute — refund to the address bound at send (refund-protocol)
+
+`POST /refund/{tx}` refunds a `/send` to the `refund_to` bound at pay time, carrying a dispute
+reason and an initiating party. Ported from `circlefin/refund-protocol`.
+
+```bash
+TX=$(curl -s localhost:8000/send -H 'content-type: application/json' \
+  -d '{"to":"0xa...a","amount":"0.01","refund_to":"0x9...9"}' | jq -r .tx_hash)
+curl -s localhost:8000/refund/$TX -H 'content-type: application/json' -d '{"reason":"not_delivered","by":"arbiter"}'
+# -> {"refunded":true,"refund_to":"0x9...9","reason":"not_delivered","by":"arbiter",...}
+```
+
+## Unified balance — one view of the agent's economic state (arc-multichain-wallet)
+
+`GET /balance` rolls up settled volume, prepaid credits outstanding, and open split-bill
+requests into a single summary (the unified-balance idea from `circlefin/arc-multichain-wallet`).
+
+```bash
+curl -s localhost:8000/balance
+# -> {"settled":{...}, "credits":{"accounts":1,"outstanding_usdc":"0.050000"},
+#     "requests":{"total":1,"open":1,"outstanding_usdc":"0.100000"}}
 ```
 
 ## Traction — settled volume across every primitive
