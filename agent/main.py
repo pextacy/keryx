@@ -51,6 +51,7 @@ from shared.streaming import StreamBook, StreamClosed
 from shared.swap import SwapError
 from shared.swap import quote as swap_quote
 from shared.traction import TractionBook
+from shared.treasury import Treasury, TreasuryError
 from shared.types import Attestation, CitationIntent, SettlementStatus
 from shared.workflow import WorkflowError, WorkflowManager
 
@@ -1222,8 +1223,10 @@ def get_request(rid: str) -> dict[str, Any]:
 # --- Prepaid credits (arc-commerce buy-credits-with-USDC) ---
 
 # Treasury that receives prepaid top-ups (a real deployment uses a Circle wallet; here a
-# deterministic demo address so the settlement is visible end to end).
+# deterministic demo address so the settlement is visible end to end). The Treasury ledger
+# tracks its accumulated balance and supports a sweep (arc-fintech rebalance).
 _CREDIT_TREASURY = _demo_wallet(0)
+_treasury = Treasury(wallet=_CREDIT_TREASURY)
 
 
 class TopupRequest(BaseModel):
@@ -1275,6 +1278,7 @@ def credits_topup(req: TopupRequest) -> dict[str, Any]:
     if tx_hash is None:
         return {"error": "settlement_failed", "wallet": req.wallet}
     acct = _credits.credit(req.wallet, req.amount, tx_hash)
+    _treasury.deposit(req.amount, req.wallet, tx_hash)
     _record_memo(
         tx_hash,
         build_memo(
@@ -1317,6 +1321,67 @@ def balance() -> dict[str, Any]:
         "settled": traction.summary(),
         "credits": _credits.summary(),
         "requests": _requests.summary(),
+        "treasury": _treasury_view(),
+    }
+
+
+# --- Treasury sweep (arc-fintech multi-chain treasury / rebalance) ---
+
+
+def _treasury_view() -> dict[str, Any]:
+    return {
+        "wallet": _treasury.wallet,
+        "balance": str(_treasury.balance),
+        "sweepable": _treasury.sweepable(settings.treasury_sweep_threshold),
+        "threshold": str(settings.treasury_sweep_threshold),
+        "flows": [
+            {
+                "kind": f.kind.value,
+                "amount": str(f.amount),
+                "counterparty": f.counterparty,
+                "tx_hash": f.tx_hash,
+            }
+            for f in _treasury.flows
+        ],
+    }
+
+
+class SweepRequest(BaseModel):
+    to: str = Field(description="0x destination wallet to sweep the treasury balance to")
+
+    @field_validator("to")
+    @classmethod
+    def _check_to(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+@app.get("/treasury", tags=["ledger-ops"])
+def treasury_status() -> dict[str, Any]:
+    """Read the agent's treasury — accumulated prepaid-credit inflows, sweep flows, and whether
+    the balance has crossed the sweep threshold (ported from circlefin/arc-fintech)."""
+    return _treasury_view()
+
+
+@app.post("/treasury/sweep", tags=["ledger-ops"])
+def treasury_sweep(req: SweepRequest) -> dict[str, Any]:
+    """Sweep the whole treasury balance to a destination (arc-fintech rebalance): settles the
+    balance via the rail, then zeroes the treasury. Errors if there's nothing to sweep."""
+    try:
+        amount = _treasury.prepare_sweep()
+    except TreasuryError as exc:
+        return {"error": str(exc)}
+    tx_hash = _settle_to(f"treasury-sweep:{req.to}", req.to, amount, kind="sweep")
+    if tx_hash is None:
+        return {"error": "settlement_failed"}
+    _treasury.swept(amount, req.to, tx_hash)
+    return {
+        "swept": True,
+        "amount": str(amount),
+        "to": req.to,
+        "tx_hash": tx_hash,
+        **_treasury_view(),
     }
 
 
