@@ -144,6 +144,15 @@ export interface CircleTxResponse {
   error?: string;
 }
 
+export interface ReconcileResponse {
+  enabled: boolean;
+  ledger_rows: number;
+  verified?: number;
+  unverified?: number;
+  reconciled_usdc?: string;
+  in_sync?: boolean;
+}
+
 export interface CitationMetrics {
   total_settled_usdc: string;
   citations_settled: number;
