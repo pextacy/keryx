@@ -15,6 +15,10 @@ const KIND_LABEL: Record<string, string> = {
   send: "Memo'd sends",
   swap: "Stablecoin swaps",
   refund: "Refunds",
+  request: "Split-bill requests",
+  topup: "Prepaid credit top-ups",
+  workflow: "Approved workflows",
+  sweep: "Treasury sweeps",
 };
 
 // Relative share of total volume for one kind — a horizontal bar (no time series exists,
