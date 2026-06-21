@@ -40,6 +40,10 @@ extend-exclude = ["vendor", "web"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+# The capability catalog holds intentional long example-curl data strings.
+[tool.ruff.lint.per-file-ignores]
+"shared/capability_index.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

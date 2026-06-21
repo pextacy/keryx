@@ -384,6 +384,7 @@ export interface CapabilityEntry {
   summary: string;
   upstream: string | null;
   ported: boolean;
+  example?: string;
 }
 
 export interface CapabilityIndex {

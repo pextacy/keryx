@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { errorMessage, getJson } from "@/lib/api";
 import type { CapabilityIndex, CapabilityEntry } from "@/lib/capabilities";
+import { Copy } from "@/app/Copy";
 import { Card, ErrorNote } from "./Card";
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -20,6 +21,7 @@ export function CapabilityIndexPanel() {
   const [ix, setIx] = useState<CapabilityIndex | null>(null);
   const [category, setCategory] = useState("");
   const [portedOnly, setPortedOnly] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,7 +86,12 @@ export function CapabilityIndexPanel() {
             <ul className="mt-1 space-y-1.5">
               {caps.map((c) => (
                 <li key={c.name} className="text-sm">
-                  <div className="flex flex-wrap items-baseline gap-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(open === c.name ? null : c.name)}
+                    className="flex w-full flex-wrap items-baseline gap-x-2 text-left"
+                  >
+                    <span className="text-gray-400">{open === c.name ? "▾" : "▸"}</span>
                     <span className="font-medium">{c.name}</span>
                     {c.upstream && (
                       <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-700">
@@ -94,8 +101,16 @@ export function CapabilityIndexPanel() {
                     <span className="font-mono text-[11px] text-gray-400">
                       {c.endpoints.join("  ")}
                     </span>
-                  </div>
-                  <div className="text-xs text-gray-500">{c.summary}</div>
+                  </button>
+                  <div className="ml-4 text-xs text-gray-500">{c.summary}</div>
+                  {open === c.name && c.example && (
+                    <div className="ml-4 mt-1 flex items-start gap-1 rounded bg-gray-900 p-2">
+                      <code className="flex-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11px] text-gray-100">
+                        {c.example}
+                      </code>
+                      <Copy text={c.example} />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
