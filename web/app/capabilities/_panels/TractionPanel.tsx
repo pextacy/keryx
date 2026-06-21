@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage, getJson, postJson } from "@/lib/api";
-import type { TractionResponse } from "@/lib/capabilities";
+import type { BalanceResponse, TractionResponse } from "@/lib/capabilities";
 import { Card, ErrorNote } from "./Card";
 
 const KIND_LABEL: Record<string, string> = {
@@ -30,6 +30,7 @@ function ShareBar({ value, total }: { value: number; total: number }) {
 
 export function TractionPanel() {
   const [data, setData] = useState<TractionResponse | null>(null);
+  const [bal, setBal] = useState<BalanceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -37,6 +38,7 @@ export function TractionPanel() {
     setError(null);
     try {
       setData(await getJson<TractionResponse>("/api/traction"));
+      setBal(await getJson<BalanceResponse>("/api/balance"));
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -104,6 +106,21 @@ export function TractionPanel() {
               <div className="text-xs text-gray-500">payments</div>
             </div>
           </div>
+
+          {bal && (
+            <div className="mt-3 flex gap-6 border-t pt-3 text-sm">
+              <div>
+                <span className="font-semibold text-gray-700">{bal.credits.outstanding_usdc}</span>{" "}
+                <span className="text-xs text-gray-500">credits outstanding</span>
+              </div>
+              <div>
+                <span className="font-semibold text-gray-700">{bal.requests.open}</span>{" "}
+                <span className="text-xs text-gray-500">
+                  open requests ({bal.requests.outstanding_usdc} due)
+                </span>
+              </div>
+            </div>
+          )}
 
           <ul className="mt-4 space-y-2 text-sm">
             {Object.entries(data.by_kind).map(([kind, s]) => (

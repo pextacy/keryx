@@ -129,6 +129,13 @@ export interface WorkflowResponse {
   actions?: WorkflowAction[];
 }
 
+// Unified balance — aggregated economic state across the agent's books.
+export interface BalanceResponse {
+  settled: TractionResponse;
+  credits: { accounts: number; outstanding_usdc: string };
+  requests: { total: number; open: number; outstanding_usdc: string };
+}
+
 // Prepaid credits (arc-commerce buy-credits-with-USDC).
 export interface CreditEntry {
   kind: string;
