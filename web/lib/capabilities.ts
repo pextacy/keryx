@@ -246,6 +246,7 @@ export interface MemoMeta {
   scheme: string;
   mime?: string;
   in_reply_to?: string;
+  attachment_url?: string;
 }
 
 export interface MemoItem {

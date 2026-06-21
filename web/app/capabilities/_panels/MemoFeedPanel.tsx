@@ -147,6 +147,15 @@ export function MemoFeedPanel() {
                 </div>
               )}
               {m.meta?.note && <div className="mt-0.5 text-xs text-gray-700">{m.meta.note}</div>}
+              {m.meta?.attachment_url && (
+                <a
+                  href={m.meta.attachment_url}
+                  target="_blank"
+                  className="mt-0.5 inline-block text-xs text-blue-600 underline"
+                >
+                  📎 attachment ({m.meta.mime?.split(";")[0] ?? "file"})
+                </a>
+              )}
               {thread?.tx_hash === m.tx_hash && (
                 <div className="mt-2 space-y-1 border-l-2 border-gray-200 pl-2 text-xs">
                   {thread.ancestors && thread.ancestors.length > 0 && (

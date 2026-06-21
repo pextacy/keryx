@@ -16,6 +16,7 @@ export function SendPanel() {
   const [kind, setKind] = useState("citation");
   const [ref, setRef] = useState("https://example.com/post");
   const [confidential, setConfidential] = useState(false);
+  const [attachmentUrl, setAttachmentUrl] = useState("");
   const [refundTo, setRefundTo] = useState("0x" + "9".repeat(40));
   const [res, setRes] = useState<SendResponse | null>(null);
   const [refunded, setRefunded] = useState(false);
@@ -34,6 +35,7 @@ export function SendPanel() {
         kind,
         ref,
         confidential,
+        attachment_url: attachmentUrl,
         refund_to: refundTo,
       });
       setRes(r);
@@ -113,6 +115,16 @@ export function SendPanel() {
         />
         Confidential memo (note redacted in the public feed — recibo encrypted scheme)
       </label>
+      <div className="mt-2">
+        <Field label="Attachment URL (recibo mime'd payload, optional)">
+          <input
+            value={attachmentUrl}
+            onChange={(e) => setAttachmentUrl(e.target.value)}
+            placeholder="https://…/receipt.png"
+            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+          />
+        </Field>
+      </div>
       <div className="mt-2">
         <Field label="Refund to (bound at send — refund-protocol)">
           <input
