@@ -28,6 +28,7 @@ export default function LedgerPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [chainVerified, setChainVerified] = useState(false);
   const [filter, setFilter] = useState<"all" | "team" | "external">("all");
+  const [limit, setLimit] = useState(50);
   const [error, setError] = useState<string | null>(null);
 
   const shown = rows.filter(
@@ -37,7 +38,7 @@ export default function LedgerPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const r = await fetch("/api/ledger", { cache: "no-store" });
+        const r = await fetch(`/api/ledger?limit=${limit}`, { cache: "no-store" });
         const data = await r.json();
         if (!r.ok) throw new Error(data.message ?? "failed");
         setMetrics(data.metrics);
@@ -50,7 +51,7 @@ export default function LedgerPage() {
     load();
     const id = setInterval(load, 4000); // live-ish refresh
     return () => clearInterval(id);
-  }, []);
+  }, [limit]);
 
   return (
     <main className="mx-auto max-w-4xl p-8">
@@ -76,11 +77,22 @@ export default function LedgerPage() {
             {f}
           </button>
         ))}
+        <select
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+          className="ml-auto rounded border px-2 py-1.5 text-sm"
+        >
+          {[25, 50, 100, 200].map((n) => (
+            <option key={n} value={n}>
+              last {n}
+            </option>
+          ))}
+        </select>
         {rows.length > 0 && (
           <button
             type="button"
             onClick={() => downloadCsv(shown)}
-            className="ml-auto rounded border px-3 py-1.5 text-sm"
+            className="rounded border px-3 py-1.5 text-sm"
           >
             Download CSV
           </button>

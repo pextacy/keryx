@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HealthDot } from "./HealthDot";
 
 const LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Ask" },
@@ -19,6 +20,10 @@ export function Nav() {
             {l.label}
           </Link>
         ))}
+        <span className="ml-auto flex items-center gap-1.5 text-xs text-gray-400">
+          <HealthDot />
+          agent
+        </span>
       </div>
     </nav>
   );
