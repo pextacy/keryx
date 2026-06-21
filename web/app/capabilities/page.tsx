@@ -1,6 +1,7 @@
 import { StatusHeader } from "./_panels/StatusHeader";
 import { TractionPanel } from "./_panels/TractionPanel";
 import { MetricsPanel } from "./_panels/MetricsPanel";
+import { SendPanel } from "./_panels/SendPanel";
 import { PayoutPanel } from "./_panels/PayoutPanel";
 import { BondPanel } from "./_panels/BondPanel";
 import { StreamPanel } from "./_panels/StreamPanel";
@@ -26,6 +27,7 @@ export default function CapabilitiesPage() {
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <SendPanel />
         <PayoutPanel />
         <BondPanel />
         <StreamPanel />

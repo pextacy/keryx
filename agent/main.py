@@ -137,6 +137,9 @@ bonds = BondBook()
 streams = StreamBook()
 # Traction: rolls up settled volume across every primitive (the 30%-weighted judging axis).
 traction = TractionBook()
+# Provenance memos attached to settlements (tx_hash -> memo). On-chain this is the transfer
+# memo field (Arc "Send USDC with a memo" / circlefin/recibo); here it travels with the receipt.
+_memos: dict[str, str] = {}
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -813,6 +816,46 @@ def retro(req: RetroRequest) -> dict[str, Any]:
             }
         )
     return {"pool": str(req.pool), "projects": projects, "total_awarded": str(total_settled)}
+
+
+class SendRequest(BaseModel):
+    to: str = Field(description="0x recipient wallet")
+    amount: Decimal = Field(gt=0, description="USDC to send")
+    memo: str = Field(
+        default="", max_length=280, description="Provenance memo travelling with the payment"
+    )
+
+    @field_validator("to")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+@app.post("/send")
+def send(req: SendRequest) -> dict[str, Any]:
+    """Send USDC with a provenance memo (Arc "Send USDC with a memo" / circlefin/recibo).
+
+    A plain transfer whose memo carries why it was paid — a citation URL, an attestation hash,
+    a job id. The memo is bound to the settlement and retrievable by tx via GET /memo/{tx}."""
+    tx_hash = _settle_to(f"send:{len(_memos)}", req.to, req.amount, kind="send")
+    if tx_hash is not None and req.memo:
+        _memos[tx_hash] = req.memo
+    return {
+        "to": req.to,
+        "amount": str(req.amount),
+        "memo": req.memo,
+        "settled": tx_hash is not None,
+        "tx_hash": tx_hash,
+    }
+
+
+@app.get("/memo/{tx_hash}")
+def get_memo(tx_hash: str) -> dict[str, Any]:
+    """Read the provenance memo bound to a settlement tx."""
+    memo = _memos.get(tx_hash)
+    return {"tx_hash": tx_hash, "found": memo is not None, "memo": memo}
 
 
 @app.get("/traction")

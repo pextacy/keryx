@@ -12,6 +12,7 @@ const KIND_LABEL: Record<string, string> = {
   royalty: "User royalties",
   qf: "Quadratic funding",
   retro: "Retroactive funding",
+  send: "Memo'd sends",
 };
 
 export function TractionPanel() {

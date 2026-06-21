@@ -88,6 +88,14 @@ export interface RetroResponse {
   total_awarded: string;
 }
 
+export interface SendResponse {
+  to: string;
+  amount: string;
+  memo: string;
+  settled: boolean;
+  tx_hash: string | null;
+}
+
 // On-chain read endpoints all share an opt-in `enabled` flag (default false).
 export interface IdentityResponse {
   enabled: boolean;
