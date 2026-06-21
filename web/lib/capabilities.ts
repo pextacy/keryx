@@ -189,6 +189,13 @@ export interface CreditEntry {
   tx_hash: string | null;
 }
 
+export interface CreditTier {
+  name: string;
+  usdc: string;
+  bonus_bps: number;
+  credits: string;
+}
+
 export interface CreditsResponse {
   found?: boolean;
   wallet: string;
@@ -197,6 +204,8 @@ export interface CreditsResponse {
   topped_up?: boolean;
   spent?: boolean;
   reason?: string;
+  paid_usdc?: string;
+  credited?: string;
   tx_hash?: string;
   error?: string;
 }

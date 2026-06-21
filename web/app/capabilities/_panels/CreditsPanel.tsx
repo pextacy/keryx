@@ -1,33 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { errorMessage, getJson, postJson } from "@/lib/api";
-import type { CreditsResponse } from "@/lib/capabilities";
+import type { CreditsResponse, CreditTier } from "@/lib/capabilities";
 import { useToast } from "@/app/Toast";
 import { Card, ErrorNote, Field } from "./Card";
 import { TxLink } from "./TxLink";
 
 // Prepaid credits (ported from arc-commerce): top up USDC once into a balance, then draw it
-// down per action. Top-up settles to the treasury (fires the toast); spends are pure draws.
+// down per action. A tier grants bonus credits per USDC (bulk discount); top-up settles to the
+// treasury (fires the toast); spends are pure draws.
 export function CreditsPanel() {
   const { toast, notify } = useToast();
   const [wallet, setWallet] = useState("0x" + "a".repeat(40));
   const [topup, setTopup] = useState("0.05");
+  const [tier, setTier] = useState("");
+  const [tiers, setTiers] = useState<CreditTier[]>([]);
   const [spend, setSpend] = useState("0.001");
   const [reason, setReason] = useState("citation");
   const [acct, setAcct] = useState<CreditsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    getJson<{ tiers: CreditTier[] }>("/api/credits/tiers")
+      .then((r) => setTiers(r.tiers))
+      .catch(() => {});
+  }, []);
+
   async function doTopup() {
     setBusy(true);
     setError(null);
     try {
-      const r = await postJson<CreditsResponse>("/api/credits/topup", { wallet, amount: topup });
+      const body = tier ? { wallet, tier } : { wallet, amount: topup };
+      const r = await postJson<CreditsResponse>("/api/credits/topup", body);
       if (r.error) setError(r.error);
       else {
         setAcct(r);
-        if (r.topped_up) notify(`Topped up ${topup} USDC`, r.tx_hash);
+        if (r.topped_up) notify(`Topped up ${r.credited ?? topup} credits`, r.tx_hash);
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -74,13 +84,30 @@ export function CreditsPanel() {
       </Field>
 
       <div className="mt-3 flex items-end gap-2">
-        <Field label="Top up (USDC)">
-          <input
-            value={topup}
-            onChange={(e) => setTopup(e.target.value)}
-            className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
-          />
+        <Field label="Package">
+          <select
+            value={tier}
+            onChange={(e) => setTier(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+          >
+            <option value="">custom</option>
+            {tiers.map((t) => (
+              <option key={t.name} value={t.name}>
+                {t.name}: {t.usdc} → {t.credits}
+                {t.bonus_bps > 0 ? ` (+${t.bonus_bps / 100}%)` : ""}
+              </option>
+            ))}
+          </select>
         </Field>
+        {!tier && (
+          <Field label="Top up (USDC)">
+            <input
+              value={topup}
+              onChange={(e) => setTopup(e.target.value)}
+              className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+            />
+          </Field>
+        )}
         <button
           type="button"
           onClick={() => void doTopup()}
