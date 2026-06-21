@@ -42,6 +42,7 @@ from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.config import settings
 from shared.memo import Memo, build_memo
+from shared.p2p import RequestBook, RequestError
 from shared.qf import Project, quadratic_match
 from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
@@ -169,6 +170,9 @@ _sends: dict[str, dict[str, Any]] = {}
 # Approved-action workflows (ported from circlefin/circle-ooak): a batch of settlement
 # intents is approved once, then executed in order — nothing settles that wasn't approved.
 _workflows = WorkflowManager()
+# Split-bill money requests (inspired by circlefin/arc-p2p-payments): a payee requests a
+# total split across payers; each payer's share settles to the payee on fulfil.
+_requests = RequestBook()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -1111,6 +1115,104 @@ def workflow_status(wfid: str) -> dict[str, Any]:
             {"intent": a.intent, "status": a.status.value, "result": a.result} for a in wf.actions
         ],
     }
+
+
+# --- Split-bill money requests (arc-p2p-payments "request money") ---
+
+
+class RequestCreate(BaseModel):
+    payee: str = Field(description="0x wallet that receives the collected funds")
+    payers: list[str] = Field(min_length=1, description="0x wallets that split the total")
+    total: Decimal = Field(gt=0, description="USDC total to split equally across payers")
+
+    @field_validator("payee")
+    @classmethod
+    def _check_payee(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid payee: {v!r}")
+        return v
+
+    @field_validator("payers")
+    @classmethod
+    def _check_payers(cls, v: list[str]) -> list[str]:
+        for p in v:
+            if not _HEX_WALLET.match(p):
+                raise ValueError(f"invalid payer: {p!r}")
+        return v
+
+
+def _request_view(req: Any) -> dict[str, Any]:
+    return {
+        "id": req.id,
+        "payee": req.payee,
+        "total": str(req.total),
+        "status": req.status.value,
+        "collected": str(req.collected()),
+        "outstanding": str(req.outstanding()),
+        "shares": [
+            {"payer": s.payer, "amount": str(s.amount), "paid": s.paid, "tx_hash": s.tx_hash}
+            for s in req.shares
+        ],
+    }
+
+
+@app.post("/request", tags=["primitives"])
+def create_request(req: RequestCreate) -> dict[str, Any]:
+    """Open a split-bill money request — a payee asks payers to cover a total, split dust-free
+    (ported from circlefin/arc-p2p-payments "request money"). Payers fulfil per share."""
+    try:
+        r = _requests.create(req.payee, req.payers, req.total)
+    except RequestError as exc:
+        return {"error": str(exc)}
+    return _request_view(r)
+
+
+class FulfilRequest(BaseModel):
+    payer: str = Field(description="0x wallet of the payer settling their share")
+
+    @field_validator("payer")
+    @classmethod
+    def _check_payer(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid payer: {v!r}")
+        return v
+
+
+@app.post("/request/{rid}/fulfil", tags=["primitives"])
+def fulfil_request(rid: str, body: FulfilRequest) -> dict[str, Any]:
+    """Fulfil one payer's share — settles their portion to the request's payee via the rail,
+    then marks the share paid (two-step so a failed settlement never marks it paid)."""
+    req = _requests.get(rid)
+    if req is None:
+        return {"found": False, "id": rid}
+    try:
+        share = _requests.fulfil(rid, body.payer)
+    except RequestError as exc:
+        return {"error": str(exc), "id": rid}
+    tx_hash = _settle_to(f"request:{rid}:{body.payer}", req.payee, share.amount, kind="request")
+    if tx_hash is None:
+        return {"error": "settlement_failed", "id": rid}
+    _requests.settled(share, tx_hash)
+    _record_memo(
+        tx_hash,
+        build_memo(
+            kind="invoice",
+            ref=rid,
+            note=f"share of {req.total} to {req.payee}",
+            message_from=body.payer,
+            message_to=req.payee,
+        ),
+    )
+    return {"id": rid, "settled": True, "tx_hash": tx_hash, **_request_view(req)}
+
+
+@app.get("/request/{rid}", tags=["primitives"])
+def get_request(rid: str) -> dict[str, Any]:
+    """Read a money request's status — collected vs outstanding, per-payer share progress."""
+    req = _requests.get(rid)
+    if req is None:
+        return {"found": False, "id": rid}
+    return {"found": True, **_request_view(req)}
 
 
 def _memo_item(tx_hash: str) -> dict[str, Any]:
