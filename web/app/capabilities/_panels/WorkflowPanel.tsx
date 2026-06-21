@@ -7,6 +7,7 @@ import type {
   WorkflowExecuteResponse,
   WorkflowResponse,
 } from "@/lib/capabilities";
+import { useToast } from "@/app/Toast";
 import { Card, ErrorNote, Field } from "./Card";
 import { TxLink } from "./TxLink";
 
@@ -16,6 +17,7 @@ type Row = { to: string; amount: string };
 // approve it once (-> wfid), then execute each in order. The agent rejects any execute that
 // doesn't match the approved next action, so nothing settles that wasn't approved.
 export function WorkflowPanel() {
+  const { toast, notify } = useToast();
   const [rows, setRows] = useState<Row[]>([
     { to: "0x" + "a".repeat(40), amount: "0.01" },
     { to: "0x" + "b".repeat(40), amount: "0.02" },
@@ -73,6 +75,7 @@ export function WorkflowPanel() {
         kind: "workflow",
       });
       if (r.error) setError(r.error);
+      else if (r.settled) notify(`Settled ${r.amount} USDC`, r.tx_hash);
       await refresh(wfid);
     } catch (err) {
       setError(errorMessage(err));
@@ -193,6 +196,7 @@ export function WorkflowPanel() {
       )}
 
       <ErrorNote message={error} />
+      {toast}
     </Card>
   );
 }

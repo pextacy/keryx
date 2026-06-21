@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { errorMessage, postJson } from "@/lib/api";
 import type { RequestResponse } from "@/lib/capabilities";
+import { useToast } from "@/app/Toast";
 import { Card, ErrorNote, Field } from "./Card";
 import { TxLink } from "./TxLink";
 
@@ -10,6 +11,7 @@ import { TxLink } from "./TxLink";
 // set of payers to cover a total, split dust-free. Each payer fulfils their share, which
 // settles to the payee. Shows collected vs outstanding and per-payer paid/pending state.
 export function RequestPanel() {
+  const { toast, notify } = useToast();
   const [payee, setPayee] = useState("0x" + "e".repeat(40));
   const [payers, setPayers] = useState("0x" + "a".repeat(40) + "\n0x" + "b".repeat(40));
   const [total, setTotal] = useState("0.10");
@@ -45,7 +47,10 @@ export function RequestPanel() {
     try {
       const r = await postJson<RequestResponse>(`/api/request/${req.id}/fulfil`, { payer });
       if (r.error) setError(r.error);
-      else setReq(r);
+      else {
+        setReq(r);
+        if (r.settled) notify("Share fulfilled", r.tx_hash);
+      }
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -165,6 +170,7 @@ export function RequestPanel() {
       )}
 
       <ErrorNote message={error} />
+      {toast}
     </Card>
   );
 }

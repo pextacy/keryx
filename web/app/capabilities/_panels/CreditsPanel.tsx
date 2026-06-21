@@ -1,0 +1,163 @@
+"use client";
+
+import { useState } from "react";
+import { errorMessage, getJson, postJson } from "@/lib/api";
+import type { CreditsResponse } from "@/lib/capabilities";
+import { useToast } from "@/app/Toast";
+import { Card, ErrorNote, Field } from "./Card";
+import { TxLink } from "./TxLink";
+
+// Prepaid credits (ported from arc-commerce): top up USDC once into a balance, then draw it
+// down per action. Top-up settles to the treasury (fires the toast); spends are pure draws.
+export function CreditsPanel() {
+  const { toast, notify } = useToast();
+  const [wallet, setWallet] = useState("0x" + "a".repeat(40));
+  const [topup, setTopup] = useState("0.05");
+  const [spend, setSpend] = useState("0.001");
+  const [reason, setReason] = useState("citation");
+  const [acct, setAcct] = useState<CreditsResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function doTopup() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await postJson<CreditsResponse>("/api/credits/topup", { wallet, amount: topup });
+      if (r.error) setError(r.error);
+      else {
+        setAcct(r);
+        if (r.topped_up) notify(`Topped up ${topup} USDC`, r.tx_hash);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doSpend() {
+    setError(null);
+    try {
+      const r = await postJson<CreditsResponse>("/api/credits/spend", {
+        wallet,
+        amount: spend,
+        reason,
+      });
+      if (r.error) setError(r.error);
+      else setAcct(r);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  async function refresh() {
+    setError(null);
+    try {
+      setAcct(await getJson<CreditsResponse>(`/api/credits/${encodeURIComponent(wallet)}`));
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
+
+  return (
+    <Card
+      title="Prepaid credits (commerce)"
+      subtitle="Top up USDC once, then draw it down per action — one settlement funds many tolls"
+    >
+      <Field label="Wallet">
+        <input
+          value={wallet}
+          onChange={(e) => setWallet(e.target.value)}
+          className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+        />
+      </Field>
+
+      <div className="mt-3 flex items-end gap-2">
+        <Field label="Top up (USDC)">
+          <input
+            value={topup}
+            onChange={(e) => setTopup(e.target.value)}
+            className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+          />
+        </Field>
+        <button
+          type="button"
+          onClick={() => void doTopup()}
+          disabled={busy}
+          className="mb-1 rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+        >
+          {busy ? "…" : "Top up"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void refresh()}
+          className="mb-1 rounded border px-3 py-1.5 text-sm"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {acct && (
+        <>
+          <div className="mt-4 flex items-baseline gap-2">
+            <span className="text-2xl font-semibold text-green-700">{acct.balance}</span>
+            <span className="text-sm text-gray-500">credits (USDC)</span>
+          </div>
+
+          <div className="mt-3 flex items-end gap-2">
+            <Field label="Spend">
+              <input
+                value={spend}
+                onChange={(e) => setSpend(e.target.value)}
+                className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+              />
+            </Field>
+            <Field label="Reason">
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-32 rounded border border-gray-300 px-2 py-1 text-sm"
+              />
+            </Field>
+            <button
+              type="button"
+              onClick={() => void doSpend()}
+              className="mb-1 rounded border px-3 py-1.5 text-sm"
+            >
+              Draw down
+            </button>
+          </div>
+
+          {acct.entries && acct.entries.length > 0 && (
+            <ul className="mt-4 space-y-1 text-xs">
+              {acct.entries
+                .slice()
+                .reverse()
+                .map((e, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 font-mono">
+                    <span
+                      className={
+                        e.kind === "topup" ? "text-green-700" : "text-gray-600"
+                      }
+                    >
+                      {e.kind === "topup" ? "+" : "−"}
+                      {e.amount} · {e.reason}
+                    </span>
+                    {e.tx_hash ? (
+                      <TxLink hash={e.tx_hash} prefix="tx" />
+                    ) : (
+                      <span className="text-gray-400">draw</span>
+                    )}
+                  </li>
+                ))}
+            </ul>
+          )}
+        </>
+      )}
+
+      <ErrorNote message={error} />
+      {toast}
+    </Card>
+  );
+}

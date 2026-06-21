@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { errorMessage, postJson } from "@/lib/api";
 import type { PayoutResponse } from "@/lib/capabilities";
+import { useToast } from "@/app/Toast";
 import { Card, ErrorNote, Field } from "./Card";
 import { TxLink } from "./TxLink";
 
@@ -18,6 +19,7 @@ const SEED: Row[] = [
 ];
 
 export function PayoutPanel() {
+  const { toast, notify } = useToast();
   const [amount, setAmount] = useState("0.01");
   const [rows, setRows] = useState<Row[]>(SEED);
   const [res, setRes] = useState<PayoutResponse | null>(null);
@@ -36,7 +38,10 @@ export function PayoutPanel() {
         amount,
         contributors: rows.map((r) => ({ wallet: r.wallet, share: r.share })),
       };
-      setRes(await postJson<PayoutResponse>("/api/payout", body));
+      const r = await postJson<PayoutResponse>("/api/payout", body);
+      setRes(r);
+      const firstTx = r.recipients.find((x) => x.tx_hash)?.tx_hash ?? null;
+      notify(`Split ${r.total_settled} USDC to ${r.recipients.length}`, firstTx);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -115,6 +120,7 @@ export function PayoutPanel() {
           </li>
         </ul>
       )}
+      {toast}
     </Card>
   );
 }

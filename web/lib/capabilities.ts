@@ -129,6 +129,26 @@ export interface WorkflowResponse {
   actions?: WorkflowAction[];
 }
 
+// Prepaid credits (arc-commerce buy-credits-with-USDC).
+export interface CreditEntry {
+  kind: string;
+  amount: string;
+  reason: string;
+  tx_hash: string | null;
+}
+
+export interface CreditsResponse {
+  found?: boolean;
+  wallet: string;
+  balance: string;
+  entries?: CreditEntry[];
+  topped_up?: boolean;
+  spent?: boolean;
+  reason?: string;
+  tx_hash?: string;
+  error?: string;
+}
+
 // Split-bill money request (arc-p2p-payments "request money").
 export interface RequestShare {
   payer: string;
