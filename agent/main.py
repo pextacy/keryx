@@ -40,6 +40,7 @@ from agent.llm import llm_enabled
 from agent.pipeline import AskPipeline, Session
 from registry.factory import build_store
 from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
+from shared.capability_index import index as capability_index
 from shared.config import settings
 from shared.credits import CREDIT_TIERS, CreditBook, CreditError, tier_by_name
 from shared.gateway import SUPPORTED_CHAINS, GatewayBook, GatewayError, normalize_chain
@@ -323,6 +324,13 @@ def healthz() -> dict[str, Any]:
         "embedder": status["embedder"],
         "embedder_degraded": status["embedder_degraded"],
     }
+
+
+@app.get("/capabilities", tags=["ops"])
+def capabilities() -> dict[str, Any]:
+    """A machine-readable index of every capability — endpoints, category, and the Circle
+    upstream it's ported from (where applicable). One source of truth for the dashboard."""
+    return capability_index()
 
 
 @app.get("/config", tags=["ops"])
