@@ -147,6 +147,9 @@ traction = TractionBook()
 # Provenance memos attached to settlements (tx_hash -> memo). On-chain this is the transfer
 # memo field (Arc "Send USDC with a memo" / circlefin/recibo); here it travels with the receipt.
 _memos: dict[str, str] = {}
+# Refundable sends (tx_hash -> {to, amount, refunded}) for the dispute/refund flow
+# (inspired by circlefin/refund-protocol — stablecoin payment disputes).
+_sends: dict[str, dict[str, Any]] = {}
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -848,14 +851,49 @@ def send(req: SendRequest) -> dict[str, Any]:
     A plain transfer whose memo carries why it was paid — a citation URL, an attestation hash,
     a job id. The memo is bound to the settlement and retrievable by tx via GET /memo/{tx}."""
     tx_hash = _settle_to(f"send:{len(_memos)}", req.to, req.amount, kind="send")
-    if tx_hash is not None and req.memo:
-        _memos[tx_hash] = req.memo
+    if tx_hash is not None:
+        if req.memo:
+            _memos[tx_hash] = req.memo
+        _sends[tx_hash] = {"to": req.to, "amount": req.amount, "refunded": False}
     return {
         "to": req.to,
         "amount": str(req.amount),
         "memo": req.memo,
         "settled": tx_hash is not None,
         "tx_hash": tx_hash,
+    }
+
+
+class RefundRequest(BaseModel):
+    to: str = Field(description="0x wallet to refund (the disputing payer)")
+
+    @field_validator("to")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+@app.post("/refund/{tx_hash}", tags=["primitives"])
+def refund(tx_hash: str, req: RefundRequest) -> dict[str, Any]:
+    """Refund a send (dispute resolution) — settle the amount back to ``to`` (inspired by
+    circlefin/refund-protocol). Idempotency-guarded: a send refunds at most once."""
+    record = _sends.get(tx_hash)
+    if record is None:
+        return {"found": False, "tx_hash": tx_hash}
+    if record["refunded"]:
+        return {"error": "already_refunded", "tx_hash": tx_hash}
+    refund_tx = _settle_to(f"refund:{tx_hash}", req.to, record["amount"], kind="refund")
+    if refund_tx is not None:
+        record["refunded"] = True
+        _memos[refund_tx] = f"refund of {tx_hash}"
+    return {
+        "refunded": refund_tx is not None,
+        "original_tx": tx_hash,
+        "amount": str(record["amount"]),
+        "to": req.to,
+        "refund_tx": refund_tx,
     }
 
 
@@ -909,6 +947,7 @@ def demo_reset() -> dict[str, Any]:
     bonds = BondBook()
     streams = StreamBook()
     _memos.clear()
+    _sends.clear()
     _demo_offset = 0
     return {"reset": True, "traction": traction.summary()}
 

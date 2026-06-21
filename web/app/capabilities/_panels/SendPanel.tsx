@@ -11,18 +11,30 @@ export function SendPanel() {
   const [amount, setAmount] = useState("0.01");
   const [memo, setMemo] = useState("grounded: https://example.com/post");
   const [res, setRes] = useState<SendResponse | null>(null);
+  const [refunded, setRefunded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     setBusy(true);
     setError(null);
+    setRefunded(false);
     try {
       setRes(await postJson<SendResponse>("/api/send", { to, amount, memo }));
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function refund() {
+    if (!res?.tx_hash) return;
+    try {
+      const r = await postJson<{ refunded: boolean }>(`/api/refund/${res.tx_hash}`, { to });
+      setRefunded(Boolean(r.refunded));
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -78,6 +90,18 @@ export function SendPanel() {
               tx {res.tx_hash.slice(0, 14)}…
             </a>
           )}
+          {res.tx_hash &&
+            (refunded ? (
+              <span className="text-purple-700">refunded ✓</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void refund()}
+                className="self-start rounded border border-purple-300 px-2 py-0.5 text-xs text-purple-700"
+              >
+                refund (dispute)
+              </button>
+            ))}
         </dl>
       )}
     </Card>
