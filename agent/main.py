@@ -1723,8 +1723,15 @@ def attestation_verify(att: Attestation) -> dict[str, Any]:
 
 @app.get("/metrics", tags=["ledger-ops"])
 def metrics() -> dict[str, Any]:
-    """Traction metrics — the numbers we lead with (prd.md §8)."""
-    return ledger.metrics()
+    """Traction metrics — the numbers we lead with (prd.md §8).
+
+    Citation metrics at top level (back-compat), plus rolled-up ``traction`` across every
+    primitive and a ``books`` summary of the in-memory ledgers."""
+    return {
+        **ledger.metrics(),
+        "traction": traction.summary(),
+        "books": _books_summary(),
+    }
 
 
 @app.get("/ledger", tags=["ledger-ops"])
