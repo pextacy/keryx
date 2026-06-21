@@ -17,7 +17,15 @@ from dataclasses import dataclass
 # Recibo metadata: a version + an encryption scheme byte. We support only the plaintext scheme
 # (the agent settles test USDC offline); recibo's PGP scheme is the on-chain encrypted variant.
 RECIBO_VERSION = 1
+# recibo's metadata carries an `encrypt` scheme: "none" (plaintext) vs "pgp" (encrypted, only
+# the parties can read). We model the visibility distinction without real PGP: a CONFIDENTIAL
+# memo's note is redacted in the public feed (/memos) but returned in full on a direct read
+# (/memo/{tx}) — the on-chain analogue is a recibo PGP memo only the counterparties decrypt.
 SCHEME_PLAINTEXT = "plaintext"
+SCHEME_CONFIDENTIAL = "confidential"
+# IANA media type recibo stamps on a plaintext message.
+DEFAULT_MIME = "text/plain;charset=UTF-8"
+_REDACTED = "🔒 confidential"
 
 # What a payment was for. A small taxonomy so a receipt feed is filterable/legible.
 MEMO_KINDS = (
@@ -45,22 +53,36 @@ class Memo:
     message_to: str  # who was paid
     version: int = RECIBO_VERSION
     scheme: str = SCHEME_PLAINTEXT
+    mime: str = DEFAULT_MIME
+
+    @property
+    def confidential(self) -> bool:
+        return self.scheme == SCHEME_CONFIDENTIAL
 
     def line(self) -> str:
-        """A one-line plaintext rendering (the legacy memo string, kept for back-compat)."""
-        head = self.kind if self.kind != "note" else ""
-        parts = [p for p in (head, self.ref, self.note) if p]
-        return ": ".join(parts) if parts else self.note
+        """A one-line plaintext rendering (the legacy memo string, kept for back-compat).
 
-    def as_dict(self) -> dict[str, object]:
+        A confidential memo redacts its note here (this string can surface in public feeds);
+        kind + ref stay visible so the receipt is still legible.
+        """
+        note = _REDACTED if self.confidential else self.note
+        head = self.kind if self.kind != "note" else ""
+        parts = [p for p in (head, self.ref, note) if p]
+        return ": ".join(parts) if parts else note
+
+    def as_dict(self, *, public: bool = False) -> dict[str, object]:
+        """Serialise the envelope. ``public=True`` redacts a confidential memo's note (for the
+        /memos feed); a direct read passes ``public=False`` to return the full note."""
+        note = _REDACTED if (public and self.confidential) else self.note
         return {
             "kind": self.kind,
             "ref": self.ref,
-            "note": self.note,
+            "note": note,
             "message_from": self.message_from,
             "message_to": self.message_to,
             "version": self.version,
             "scheme": self.scheme,
+            "mime": self.mime,
         }
 
 
@@ -71,6 +93,7 @@ def build_memo(
     note: str = "",
     message_from: str = "",
     message_to: str = "",
+    confidential: bool = False,
 ) -> Memo:
     """Build a Memo, normalising the kind to the known taxonomy (unknown -> 'other')."""
     k = kind.strip().lower()
@@ -82,4 +105,5 @@ def build_memo(
         note=note.strip(),
         message_from=message_from,
         message_to=message_to,
+        scheme=SCHEME_CONFIDENTIAL if confidential else SCHEME_PLAINTEXT,
     )

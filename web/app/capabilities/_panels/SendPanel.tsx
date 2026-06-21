@@ -15,6 +15,7 @@ export function SendPanel() {
   const [memo, setMemo] = useState("grounded g=0.91");
   const [kind, setKind] = useState("citation");
   const [ref, setRef] = useState("https://example.com/post");
+  const [confidential, setConfidential] = useState(false);
   const [refundTo, setRefundTo] = useState("0x" + "9".repeat(40));
   const [res, setRes] = useState<SendResponse | null>(null);
   const [refunded, setRefunded] = useState(false);
@@ -32,6 +33,7 @@ export function SendPanel() {
         memo,
         kind,
         ref,
+        confidential,
         refund_to: refundTo,
       });
       setRes(r);
@@ -103,6 +105,14 @@ export function SendPanel() {
           />
         </Field>
       </div>
+      <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+        <input
+          type="checkbox"
+          checked={confidential}
+          onChange={(e) => setConfidential(e.target.checked)}
+        />
+        Confidential memo (note redacted in the public feed — recibo encrypted scheme)
+      </label>
       <div className="mt-2">
         <Field label="Refund to (bound at send — refund-protocol)">
           <input

@@ -155,15 +155,19 @@ traction = TractionBook()
 # transfer memo field (Arc "Send USDC with a memo" / circlefin/recibo); here it travels with
 # the receipt. ``_memo_meta`` holds the structured recibo-style envelope (kind/ref/note/routing).
 _memos: dict[str, str] = {}
-_memo_meta: dict[str, dict[str, object]] = {}
+_memo_objs: dict[str, Memo] = {}
 
 
 def _record_memo(tx_hash: str, memo: Memo) -> None:
-    """Bind a structured provenance memo to a settlement tx (plaintext line + envelope)."""
+    """Bind a structured provenance memo to a settlement tx (plaintext line + envelope).
+
+    The Memo object is kept so reads can redact a confidential note in public feeds while a
+    direct read returns it in full. ``line()`` already redacts, so ``_memos`` is feed-safe.
+    """
     line = memo.line()
     if line:
         _memos[tx_hash] = line
-    _memo_meta[tx_hash] = memo.as_dict()
+    _memo_objs[tx_hash] = memo
 
 
 # Refundable sends (tx_hash -> {to, amount, refunded}) for the dispute/refund flow
@@ -867,6 +871,10 @@ class SendRequest(BaseModel):
     ref: str = Field(
         default="", max_length=280, description="Referenced thing: citation URL, hash, job id"
     )
+    confidential: bool = Field(
+        default=False,
+        description="Redact the memo note in the public feed (recibo encrypted scheme)",
+    )
     refund_to: str = Field(
         default="",
         description="0x refund destination, bound at send time (circlefin/refund-protocol)",
@@ -900,6 +908,7 @@ def send(req: SendRequest) -> dict[str, Any]:
         note=req.memo,
         message_from=signer.address,
         message_to=req.to,
+        confidential=req.confidential,
     )
     if tx_hash is not None:
         _record_memo(tx_hash, memo)
@@ -1385,24 +1394,30 @@ def treasury_sweep(req: SweepRequest) -> dict[str, Any]:
     }
 
 
-def _memo_item(tx_hash: str) -> dict[str, Any]:
-    """A receipt: the tx, its one-line memo, and the structured recibo envelope (if any)."""
-    return {"tx_hash": tx_hash, "memo": _memos.get(tx_hash), "meta": _memo_meta.get(tx_hash)}
+def _memo_item(tx_hash: str, *, public: bool) -> dict[str, Any]:
+    """A receipt: the tx, its one-line memo, and the structured recibo envelope (if any).
+
+    ``public=True`` (the /memos feed) redacts a confidential note; a direct read returns it.
+    """
+    memo = _memo_objs.get(tx_hash)
+    meta = memo.as_dict(public=public) if memo is not None else None
+    return {"tx_hash": tx_hash, "memo": _memos.get(tx_hash), "meta": meta}
 
 
 @app.get("/memo/{tx_hash}", tags=["ledger-ops"])
 def get_memo(tx_hash: str) -> dict[str, Any]:
-    """Read the provenance memo bound to a settlement tx (recibo-style receipt)."""
-    found = tx_hash in _memos or tx_hash in _memo_meta
-    return {"found": found, **_memo_item(tx_hash)}
+    """Read the provenance memo bound to a settlement tx (recibo-style receipt) — full note,
+    even when confidential (a direct read stands in for a counterparty decrypting it)."""
+    found = tx_hash in _memos or tx_hash in _memo_objs
+    return {"found": found, **_memo_item(tx_hash, public=False)}
 
 
 @app.get("/memos", tags=["ledger-ops"])
 def list_memos(limit: int = 20, kind: str = "") -> dict[str, Any]:
     """Recent provenance memos (most recent first) — a recibo-style feed of why payments were
-    made. Optional ``kind`` filters the feed to one memo taxonomy (citation/swap/refund/...)."""
-    # _memo_meta preserves insertion order and every recorded memo has an envelope.
-    items = [_memo_item(tx) for tx in reversed(list(_memo_meta))]
+    made. Confidential notes are redacted here. Optional ``kind`` filters the feed."""
+    # _memo_objs preserves insertion order and every recorded memo has an envelope.
+    items = [_memo_item(tx, public=True) for tx in reversed(list(_memo_objs))]
     if kind:
         k = kind.strip().lower()
         items = [it for it in items if (it["meta"] or {}).get("kind") == k]
