@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ARC_EXPLORER_TX, type AskResponse } from "@/lib/types";
+import { Copy } from "./Copy";
 
 export default function Home() {
   const [query, setQuery] = useState(
@@ -54,8 +55,20 @@ export default function Home() {
     <main className="mx-auto max-w-3xl p-8">
       <h1 className="text-3xl font-semibold">Keryx</h1>
       <p className="mt-1 text-gray-500">
-        Ask a question. Watch the agent pay every source it genuinely cites — live on Arc.
+        Your work earns every time an agent cites it. Ask a question; the agent pays every
+        source it genuinely cites — sub-cent USDC, live on Arc, pay-on-citation not pay-on-fetch.
       </p>
+      <div className="mt-3 flex flex-wrap gap-3 text-sm">
+        <a href="/capabilities" className="text-blue-600 underline">
+          Nanopayment capabilities →
+        </a>
+        <a href="/ledger" className="text-blue-600 underline">
+          Live ledger
+        </a>
+        <a href="/audit" className="text-blue-600 underline">
+          Audit an attestation
+        </a>
+      </div>
 
       <form onSubmit={ask} className="mt-6 flex gap-2">
         <input
@@ -162,10 +175,22 @@ export default function Home() {
               </span>
             </div>
             <dl className="mt-2 space-y-1 font-mono text-xs text-gray-600">
-              <div>agent: {res.attestation.agent_pubkey}</div>
-              <div>query_hash: {res.attestation.query_hash}</div>
-              <div>answer_hash: {res.attestation.answer_hash}</div>
+              <div className="flex items-center gap-1">
+                agent: {res.attestation.agent_pubkey}
+                <Copy text={res.attestation.agent_pubkey} />
+              </div>
+              <div className="flex items-center gap-1">
+                query_hash: {res.attestation.query_hash}
+                <Copy text={res.attestation.query_hash} />
+              </div>
+              <div className="flex items-center gap-1">
+                answer_hash: {res.attestation.answer_hash}
+                <Copy text={res.attestation.answer_hash} />
+              </div>
             </dl>
+            <a href="/audit" className="mt-2 inline-block text-xs text-blue-600 underline">
+              Verify this attestation independently →
+            </a>
           </div>
         </section>
       )}
