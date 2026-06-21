@@ -91,6 +91,31 @@ curl -s localhost:8000/qf -H 'content-type: application/json' -d '{
 # -> A (4 backers) matched 0.008, B (1 backer) matched 0.002 — equal direct totals, breadth wins.
 ```
 
+## Retroactive funding — reward what proved valuable (PA 07)
+
+`POST /retro` — pay out a pool *after the fact* by realized impact (distinct engagers),
+weighted quadratically (impact²) so breadth of impact wins.
+
+```bash
+curl -s localhost:8000/retro -H 'content-type: application/json' -d '{
+  "pool": "0.01",
+  "projects": [{"wallet":"0xa...a","impact":40},{"wallet":"0xb...b","impact":10}]
+}'
+# -> impact 40 vs 10 -> 0.0094 vs 0.0006 awarded; broad impact wins big.
+```
+
+## Audit — verify an attestation independently
+
+`POST /attestation/verify` — recompute an attestation's signature against its `agent_pubkey`.
+Paste the `attestation` (+ `citations`) from an `/ask` response; tampering flips `verified`.
+
+```bash
+curl -s localhost:8000/attestation/verify -H 'content-type: application/json' -d @attestation.json
+# -> {"verified": true, "agent_pubkey": "0x…", "query_hash": "0x…", "citations": 4}
+```
+
+A paste-and-verify UI is the web **`/audit`** page.
+
 ## Traction — settled volume across every primitive
 
 `GET /traction` rolls up volume + payment count by primitive (the 30%-weighted judging axis).
@@ -104,6 +129,15 @@ Generate volume with the fleet (agents are the users):
 
 ```bash
 python -m agent.capabilities_fleet --rounds 20    # drives every primitive against the agent
+```
+
+`GET /status` is a one-call dashboard bootstrap (live rail/embedder/LLM, capability flags,
+traction + citation metrics). `GET /reconcile` checks the off-chain ledger against chain
+(matched vs unverified, reconciled total) when `KERYX_LEDGER_VERIFY_CHAIN` is on.
+
+```bash
+curl -s localhost:8000/status     | jq '{rail, traction: .traction.total_volume_usdc}'
+curl -s localhost:8000/reconcile  # {"enabled":true,"verified":N,"unverified":M,"in_sync":bool}
 ```
 
 ---

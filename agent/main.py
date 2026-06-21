@@ -46,7 +46,7 @@ from shared.rail import HttpRail, MockRail, Rail
 from shared.splits import Contributor, split_payout
 from shared.streaming import StreamBook, StreamClosed
 from shared.traction import TractionBook
-from shared.types import CitationIntent, SettlementStatus
+from shared.types import Attestation, CitationIntent, SettlementStatus
 
 
 def build_rail() -> Rail:
@@ -795,6 +795,21 @@ def status() -> dict[str, Any]:
         },
         "traction": traction.summary(),
         "citation_metrics": ledger.metrics(),
+    }
+
+
+@app.post("/attestation/verify")
+def attestation_verify(att: Attestation) -> dict[str, Any]:
+    """Verify a signed attestation independently — "don't trust us, check the signature".
+
+    Recomputes the signature over the canonical payload against ``agent_pubkey``. Lets anyone
+    audit a citation attestation (e.g. pasted from an /ask response) without trusting Keryx.
+    """
+    return {
+        "verified": verify_attestation(att),
+        "agent_pubkey": att.agent_pubkey,
+        "query_hash": att.query_hash,
+        "citations": len(att.citations),
     }
 
 
