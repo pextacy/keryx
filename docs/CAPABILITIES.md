@@ -10,6 +10,25 @@ Splits are **exact**: every payout/match sums to the input down to the micro-USD
 dust and never overpaying. On-chain read endpoints are **opt-in** and return `{"enabled": false}`
 until their `KERYX_*_ENABLED` flag is set.
 
+## Vendored Circle ports
+
+Beyond the original nanopayment primitives, several capabilities are concrete ports of
+Circle's open-source Arc repos (vendored under `vendor/circle/`, see [`NOTICE`](../NOTICE)).
+Each is the offline analogue of the upstream's pattern, settling through the same rail:
+
+| Capability | Endpoints | Ported from |
+| --- | --- | --- |
+| Stablecoin swap (USDC↔EURC) | `POST /swap/quote`, `/swap` | `arc-stablecoin-fx` |
+| Split-bill money request | `POST /request`, `/request/{id}/fulfil` | `arc-p2p-payments` |
+| Prepaid credits + tiers | `POST /credits/topup`, `/spend`, `GET /credits/tiers` | `arc-commerce` |
+| Approved-action workflow | `POST /workflow/approve`, `/{id}/execute` | `circle-ooak` |
+| Refund / dispute | `POST /refund/{tx}` | `refund-protocol` |
+| Structured + confidential memos | `GET /memos`, `/memo/{tx}` | `recibo` |
+| Treasury + sweep | `GET /treasury`, `POST /treasury/sweep` | `arc-fintech` |
+| Gateway unified balance | `POST /gateway/deposit`, `/spend`, `GET /gateway/{wallet}` | `arc-multichain-wallet` |
+| ERC-8183 job escrow | `GET /job/{id}` (+ bond anchor) | `arc-escrow` |
+| Unified balance summary | `GET /balance`, `/status` `books` | (aggregates the above) |
+
 ---
 
 ## Royalty split — pay every credited contributor (PA 04)
@@ -222,6 +241,33 @@ the offline analogue of `circlefin/arc-fintech`'s multi-chain rebalance.
 curl -s localhost:8000/treasury     # -> {"balance":"1.200000","sweepable":true,"flows":[...]}
 curl -s localhost:8000/treasury/sweep -H 'content-type: application/json' -d '{"to":"0xf...f"}'
 # -> {"swept":true,"amount":"1.200000","to":"0xf...f","balance":"0.000000",...}
+```
+
+## Credit tiers — buy packages at a bulk discount (arc-commerce)
+
+`GET /credits/tiers` lists purchasable packages; paying more USDC grants bonus credits per
+dollar. `POST /credits/topup` with a `tier` settles the tier's USDC and credits the
+bonus-inflated amount (plain `amount` still credits 1:1).
+
+```bash
+curl -s localhost:8000/credits/tiers
+# -> {"tiers":[{"name":"pro","usdc":"0.10","bonus_bps":1000,"credits":"0.110000"},...]}
+curl -s localhost:8000/credits/topup -H 'content-type: application/json' -d '{"wallet":"0xa...a","tier":"pro"}'
+# -> {"topped_up":true,"paid_usdc":"0.10","credited":"0.110000","balance":"0.110000",...}
+```
+
+## Gateway unified balance — deposit cross-chain, spend on Arc (arc-multichain-wallet)
+
+Deposit USDC from several source chains (`arcTestnet`, `avalancheFuji`, `baseSepolia`) into one
+unified balance, then spend it on Arc — the offline analogue of Circle Gateway's unified balance.
+
+```bash
+curl -s localhost:8000/gateway/chains   # -> {"chains":["arcTestnet","avalancheFuji","baseSepolia"]}
+curl -s localhost:8000/gateway/deposit -H 'content-type: application/json' \
+  -d '{"wallet":"0xa...a","chain":"avalancheFuji","amount":"0.5"}'
+curl -s localhost:8000/gateway/spend -H 'content-type: application/json' \
+  -d '{"wallet":"0xa...a","to":"0xc...c","amount":"0.2"}'   # draws the unified pool, settles on Arc
+curl -s localhost:8000/gateway/0xa...a   # -> {"balance":"0.300000","by_chain":{"avalancheFuji":"0.5"},...}
 ```
 
 ## Confidential memos — redact the note in the public feed (recibo)

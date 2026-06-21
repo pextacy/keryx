@@ -11,9 +11,13 @@ const ROWS: { name: string; endpoint: string; what: string }[] = [
   { name: "Stablecoin swap", endpoint: "POST /swap", what: "USDC↔EURC at an app-fee rate (arc-stablecoin-fx)" },
   { name: "Split-bill request", endpoint: "POST /request", what: "a payee splits a total across payers, each fulfils (p2p)" },
   { name: "Prepaid credits", endpoint: "POST /credits/topup", what: "top up once, draw down per action (arc-commerce)" },
+  { name: "Credit tiers", endpoint: "GET /credits/tiers", what: "buy packages, bonus credits per USDC (arc-commerce)" },
   { name: "Approved workflow", endpoint: "POST /workflow/approve", what: "approve a settlement batch, execute in order (circle-ooak)" },
+  { name: "Gateway deposit", endpoint: "POST /gateway/deposit", what: "deposit USDC from many chains into one balance (multichain-wallet)" },
+  { name: "Gateway spend", endpoint: "POST /gateway/spend", what: "spend the unified balance to a recipient on Arc" },
+  { name: "Treasury sweep", endpoint: "POST /treasury/sweep", what: "sweep accumulated inflows to a destination (arc-fintech)" },
   { name: "Refund / dispute", endpoint: "POST /refund/{tx}", what: "refund to the bound address w/ a reason (refund-protocol)" },
-  { name: "Unified balance", endpoint: "GET /balance", what: "one view of settled + credits + open requests" },
+  { name: "Unified balance", endpoint: "GET /balance", what: "one view of settled + credits + treasury + gateway" },
   { name: "Receipt feed", endpoint: "GET /memos", what: "structured provenance memos, filterable by kind" },
 ];
 
