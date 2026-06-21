@@ -97,6 +97,12 @@ class WorkflowManager:
     def get(self, wfid: str) -> Workflow | None:
         return self._workflows.get(wfid)
 
+    def summary(self) -> dict[str, object]:
+        """Counts for the dashboard: total approved workflows and how many are still active."""
+        total = len(self._workflows)
+        completed = sum(1 for w in self._workflows.values() if w.status is WorkflowStatus.COMPLETED)
+        return {"total": total, "active": total - completed}
+
     def check(self, wfid: str, function: str, args: dict[str, object]) -> Action:
         """Phase 3 guard: the next unexecuted action must match this call. Raises otherwise."""
         wf = self._workflows.get(wfid)

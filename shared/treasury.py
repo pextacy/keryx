@@ -58,6 +58,10 @@ class Treasury:
         )
         return self.balance
 
+    def summary(self) -> dict[str, object]:
+        """Compact position for the dashboard: current balance and flow count."""
+        return {"balance_usdc": str(self.balance), "flows": len(self.flows)}
+
     def sweepable(self, threshold: Decimal) -> bool:
         """Whether the balance has crossed the sweep threshold (arc-fintech rebalance trigger)."""
         return self.balance >= threshold and self.balance > 0

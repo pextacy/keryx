@@ -45,6 +45,15 @@ export function StatusHeader() {
       <Badge label="ERC-8183" on={s.capabilities.erc8183} />
       <Badge label="Circle Wallets" on={s.capabilities.circle_wallets} />
       <Badge label="chain ledger" on={s.capabilities.chain_verified_ledger} />
+      {s.books && (
+        <>
+          <span className="mx-1 text-gray-300">|</span>
+          <span className="text-xs text-gray-500">
+            {s.books.credits.outstanding_usdc} credits · {s.books.requests.open} open req ·{" "}
+            {s.books.treasury.balance_usdc} treasury · {s.books.memos} memos
+          </span>
+        </>
+      )}
     </div>
   );
 }

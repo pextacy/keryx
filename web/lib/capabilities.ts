@@ -325,4 +325,12 @@ export interface StatusResponse {
   };
   traction: TractionResponse;
   citation_metrics: CitationMetrics;
+  books?: {
+    credits: { accounts: number; outstanding_usdc: string };
+    requests: { total: number; open: number; outstanding_usdc: string };
+    treasury: { balance_usdc: string; flows: number; sweepable: boolean };
+    workflows: { total: number; active: number };
+    memos: number;
+    sends: number;
+  };
 }

@@ -1483,6 +1483,22 @@ def status() -> dict[str, Any]:
         },
         "traction": traction.summary(),
         "citation_metrics": ledger.metrics(),
+        "books": _books_summary(),
+    }
+
+
+def _books_summary() -> dict[str, Any]:
+    """Live counts across the in-memory primitive books — the agent's economic surface area."""
+    return {
+        "credits": _credits.summary(),
+        "requests": _requests.summary(),
+        "treasury": {
+            **_treasury.summary(),
+            "sweepable": _treasury.sweepable(settings.treasury_sweep_threshold),
+        },
+        "workflows": _workflows.summary(),
+        "memos": len(_memo_objs),
+        "sends": len(_sends),
     }
 
 
