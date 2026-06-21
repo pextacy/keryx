@@ -207,7 +207,46 @@ requests into a single summary (the unified-balance idea from `circlefin/arc-mul
 ```bash
 curl -s localhost:8000/balance
 # -> {"settled":{...}, "credits":{"accounts":1,"outstanding_usdc":"0.050000"},
-#     "requests":{"total":1,"open":1,"outstanding_usdc":"0.100000"}}
+#     "requests":{"total":1,"open":1,"outstanding_usdc":"0.100000"},
+#     "treasury":{"balance":"0.050000","sweepable":false,...}}
+```
+
+## Treasury — accumulate inflows, sweep out (arc-fintech)
+
+Prepaid-credit top-ups settle to the treasury; `GET /treasury` reports its balance, flow
+history, and a `sweepable` flag (balance ≥ `KERYX_TREASURY_SWEEP_THRESHOLD`, default 1.0).
+`POST /treasury/sweep` settles the whole balance to a destination and zeroes the treasury —
+the offline analogue of `circlefin/arc-fintech`'s multi-chain rebalance.
+
+```bash
+curl -s localhost:8000/treasury     # -> {"balance":"1.200000","sweepable":true,"flows":[...]}
+curl -s localhost:8000/treasury/sweep -H 'content-type: application/json' -d '{"to":"0xf...f"}'
+# -> {"swept":true,"amount":"1.200000","to":"0xf...f","balance":"0.000000",...}
+```
+
+## Confidential memos — redact the note in the public feed (recibo)
+
+Pass `confidential: true` on `/send` to mark a memo confidential (recibo's `encrypt` scheme).
+Its note is redacted (`🔒 confidential`) in the public `GET /memos` feed and the one-line
+memo, but returned in full on a direct `GET /memo/{tx}` read — the offline analogue of a
+recibo PGP memo only the counterparties can decrypt.
+
+```bash
+TX=$(curl -s localhost:8000/send -H 'content-type: application/json' \
+  -d '{"to":"0xa...a","amount":"0.01","kind":"invoice","memo":"secret terms","confidential":true}' | jq -r .tx_hash)
+curl -s localhost:8000/memo/$TX             # -> {"meta":{"note":"secret terms","scheme":"confidential",...}}
+curl -s localhost:8000/memos | jq '.memos[0].meta.note'   # -> "🔒 confidential"
+```
+
+## Dashboard bootstrap — one call for the whole picture
+
+`GET /status` also returns a `books` block: live counts across every primitive ledger
+(prepaid credits, split-bill requests, treasury, approved workflows, memos, sends).
+
+```bash
+curl -s localhost:8000/status | jq .books
+# -> {"credits":{"accounts":1,...},"requests":{"open":1,...},"treasury":{"balance_usdc":"…"},
+#     "workflows":{"total":1,"active":1},"memos":2,"sends":1}
 ```
 
 ## Traction — settled volume across every primitive

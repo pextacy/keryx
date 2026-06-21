@@ -100,6 +100,14 @@ export function MemoFeedPanel() {
                 >
                   {m.meta?.kind ?? "note"}
                 </span>
+                {m.meta?.scheme === "confidential" && (
+                  <span
+                    title="confidential — note redacted in this feed (recibo encrypted scheme)"
+                    className="rounded bg-gray-800 px-1.5 py-0.5 text-[11px] font-medium text-white"
+                  >
+                    🔒
+                  </span>
+                )}
                 <a
                   href={ARC_EXPLORER_TX + m.tx_hash}
                   target="_blank"
