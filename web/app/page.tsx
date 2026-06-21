@@ -5,14 +5,20 @@ import { ARC_EXPLORER_TX, type AskResponse } from "@/lib/types";
 import { Copy } from "./Copy";
 
 type Activity = { settlements: number; volume_usdc: string };
+type Settlement = { seq: number; kind: string; amount: string };
 
 export default function Home() {
   const [activity, setActivity] = useState<Activity | null>(null);
+  const [recent, setRecent] = useState<Settlement[]>([]);
 
   useEffect(() => {
     fetch("/api/healthz", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((b) => b?.activity && setActivity(b.activity))
+      .catch(() => {});
+    fetch("/api/history?limit=3", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => b?.settlements && setRecent(b.settlements))
       .catch(() => {});
   }, []);
 
@@ -93,6 +99,18 @@ export default function Home() {
             <div className="text-xl font-semibold">{activity.settlements}</div>
             <div className="text-xs text-gray-500">payments</div>
           </div>
+          {recent.length > 0 && (
+            <div className="ml-auto text-right">
+              <div className="text-xs text-gray-400">recent</div>
+              <div className="space-y-0.5">
+                {recent.map((s) => (
+                  <div key={s.seq} className="font-mono text-[11px] text-gray-600">
+                    {s.kind} <span className="text-green-700">{s.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
