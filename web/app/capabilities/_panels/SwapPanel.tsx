@@ -5,6 +5,7 @@ import { errorMessage, postJson } from "@/lib/api";
 import { ARC_EXPLORER_TX } from "@/lib/types";
 import type { SwapResponse } from "@/lib/capabilities";
 import { Copy } from "@/app/Copy";
+import { useToast } from "@/app/Toast";
 import { Card, ErrorNote, Field } from "./Card";
 
 const TOKENS = ["USDC", "EURC"] as const;
@@ -12,6 +13,7 @@ const TOKENS = ["USDC", "EURC"] as const;
 // Port of circlefin/arc-stablecoin-fx's swap panel: a quote (estimateSwap) then an
 // execute (kit.swap()). Here both hit the agent's offline FX engine — no funds needed.
 export function SwapPanel() {
+  const { toast, notify } = useToast();
   const [tokenIn, setTokenIn] = useState<(typeof TOKENS)[number]>("USDC");
   const [tokenOut, setTokenOut] = useState<(typeof TOKENS)[number]>("EURC");
   const [amountIn, setAmountIn] = useState("10");
@@ -41,6 +43,7 @@ export function SwapPanel() {
         set(null);
       } else {
         set(r);
+        if (r.settled) notify(`Swapped to ${r.amount_out} ${r.token_out}`, r.tx_hash);
       }
     } catch (err) {
       setError(errorMessage(err));
@@ -164,6 +167,7 @@ export function SwapPanel() {
       )}
 
       <ErrorNote message={error} />
+      {toast}
     </Card>
   );
 }

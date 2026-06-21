@@ -5,9 +5,11 @@ import { errorMessage, postJson } from "@/lib/api";
 import { ARC_EXPLORER_TX } from "@/lib/types";
 import type { SendResponse } from "@/lib/capabilities";
 import { Copy } from "@/app/Copy";
+import { useToast } from "@/app/Toast";
 import { Card, ErrorNote, Field } from "./Card";
 
 export function SendPanel() {
+  const { toast, notify } = useToast();
   const [to, setTo] = useState("0x" + "a".repeat(40));
   const [amount, setAmount] = useState("0.01");
   const [memo, setMemo] = useState("grounded g=0.91");
@@ -24,16 +26,16 @@ export function SendPanel() {
     setError(null);
     setRefunded(false);
     try {
-      setRes(
-        await postJson<SendResponse>("/api/send", {
-          to,
-          amount,
-          memo,
-          kind,
-          ref,
-          refund_to: refundTo,
-        }),
-      );
+      const r = await postJson<SendResponse>("/api/send", {
+        to,
+        amount,
+        memo,
+        kind,
+        ref,
+        refund_to: refundTo,
+      });
+      setRes(r);
+      if (r.settled) notify(`Sent ${r.amount} USDC`, r.tx_hash);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -155,6 +157,7 @@ export function SendPanel() {
             ))}
         </dl>
       )}
+      {toast}
     </Card>
   );
 }
