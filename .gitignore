@@ -28,13 +28,16 @@ web/out/
 web/.vercel/
 *.tsbuildinfo
 
-# Vendored upstreams. vendor/circle/ is committed in-tree (Circle's open-source repos, .git
-# removed, LICENSEs kept — see vendor/circle/README.md + NOTICE). Other vendor dirs stay local.
-/vendor/*
-!/vendor/circle/
-vendor/**/node_modules/
-vendor/**/.env
-vendor/**/.next/
+# Adopted Circle apps (committed in-tree under apps/ and contracts/vendor/ — .git removed,
+# LICENSEs kept; see apps/README.md + NOTICE). Ignore their local build/dep/env artifacts.
+apps/**/node_modules/
+apps/**/.env
+apps/**/.env.local
+apps/**/.next/
+apps/**/dist/
+apps/**/*.egg-info/
+contracts/vendor/**/out/
+contracts/vendor/**/cache/
 
 # OS / editor
 .DS_Store

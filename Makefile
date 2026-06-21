@@ -2,6 +2,7 @@
 
 install:
 	pip install -e ".[dev]"
+	pip install -e apps/circle-ooak   # Circle OOAK, used directly by /workflow/*
 
 lint:
 	ruff check .

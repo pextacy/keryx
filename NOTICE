@@ -2,9 +2,10 @@ Keryx
 Copyright (c) 2026 Keryx contributors
 
 This product is licensed under the MIT License (see LICENSE). It assembles and
-customizes the following third-party open-source projects. Each retains its own
-license; we keep upstream LICENSE files on vendoring and attribute here, per the
-AGENTS.md ground rules.
+customizes the following third-party open-source projects, several of which are
+adopted in-tree as standalone apps (under apps/ and contracts/vendor/). Each retains
+its own license; we keep upstream LICENSE files on adoption and attribute here, per
+the AGENTS.md ground rules.
 
 --------------------------------------------------------------------------------
 1. circlefin/arc-nanopayments
@@ -39,16 +40,17 @@ Verify each LICENSE the moment it is cloned — it is a 5-second check that ship
 the submitted repo (docs.md).
 
 --------------------------------------------------------------------------------
-Circle (github.com/circlefin) repos vendored in-tree under vendor/circle/ (their .git
-removed; each keeps its own LICENSE — mostly Apache-2.0). See vendor/circle/README.md.
-   - circlefin/arc-nanopayments         (Apache-2.0) — rail base (x402 + Gateway)
-   - circlefin/arc-escrow               (Apache-2.0) — escrow workflow (ERC-8183 bonds)
-   - circlefin/arc-stablecoin-fx        (Apache-2.0) — USDC<->EURC swap (App Kit)
-   - circlefin/arc-p2p-payments         (Apache-2.0) — gasless P2P payments
-   - circlefin/arc-commerce             (Apache-2.0) — USDC checkout/credits
-   - circlefin/arc-multichain-wallet    (Apache-2.0) — unified balance + Gateway
-   - circlefin/arc-fintech              (Apache-2.0) — multichain treasury
-   - circlefin/recibo                   (Apache-2.0) — encrypted ERC-20 memos (our /send memo)
-   - circlefin/refund-protocol          (Apache-2.0) — stablecoin disputes (our /refund)
-   - circlefin/circle-ooak              (Apache-2.0) — Object-Oriented Agent Kit (Python)
-   - circlefin/agent-stack-starter-kits (Apache-2.0) — Circle Agent Stack examples
+Circle (github.com/circlefin) repos adopted in-tree (their .git removed; each keeps its
+own LICENSE — mostly Apache-2.0). Apps live under apps/; Foundry projects under
+contracts/vendor/. See apps/README.md.
+   - circlefin/arc-nanopayments         (Apache-2.0) — apps/arc-nanopayments — rail base (x402 + Gateway)
+   - circlefin/arc-escrow               (Apache-2.0) — apps/arc-escrow — escrow workflow (ERC-8183 bonds)
+   - circlefin/arc-stablecoin-fx        (Apache-2.0) — apps/arc-stablecoin-fx — USDC<->EURC swap (App Kit)
+   - circlefin/arc-p2p-payments         (Apache-2.0) — apps/arc-p2p-payments — gasless P2P payments
+   - circlefin/arc-commerce             (Apache-2.0) — apps/arc-commerce — USDC checkout/credits
+   - circlefin/arc-multichain-wallet    (Apache-2.0) — apps/arc-multichain-wallet — unified balance + Gateway
+   - circlefin/arc-fintech              (Apache-2.0) — apps/arc-fintech — multichain treasury
+   - circlefin/circle-ooak              (Apache-2.0) — apps/circle-ooak — Object-Oriented Agent Kit (Python; used directly)
+   - circlefin/agent-stack-starter-kits (Apache-2.0) — apps/agent-stack-starter-kits — Circle Agent Stack examples
+   - circlefin/recibo                   (Apache-2.0) — contracts/vendor/recibo — encrypted ERC-20 memos (our /send memo)
+   - circlefin/refund-protocol          (Apache-2.0) — contracts/vendor/refund-protocol — stablecoin disputes (our /refund)

@@ -1,6 +1,6 @@
 // Escrow lifecycle helpers — status colors + amount formatting + a linear stepper.
 //
-// Ported from circlefin/arc-escrow (vendor/circle/arc-escrow/lib/utils/escrow.ts):
+// Ported from circlefin/arc-escrow (apps/arc-escrow/lib/utils/escrow.ts):
 // its STATUS_COLORS map (PENDING|OPEN|LOCKED|CLOSED) and Intl-based formatAmount.
 // Here the lifecycle is the ERC-8183 AgenticCommerce job status the agent returns
 // from GET /job/{id}: OPEN -> FUNDED -> SUBMITTED -> COMPLETED, with REJECTED/EXPIRED

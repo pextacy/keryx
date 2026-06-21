@@ -59,6 +59,7 @@ post /schedule  "{\"payer\":\"$A\",\"payee\":\"$B\",\"amount\":\"0.002\",\"runs\
 SID="$(printf '%s' "$RESP" | jq -r .id)"; post "/schedule/$SID/run" "{}";                                                              check "schedule run"      '.ran==true'
 post /gateway/deposit "{\"wallet\":\"$A\",\"chain\":\"avalancheFuji\",\"amount\":\"0.5\"}";                                            check "gateway deposit"   '.deposited==true'
 post /gateway/spend "{\"wallet\":\"$A\",\"to\":\"$B\",\"amount\":\"0.2\"}";                                                            check "gateway spend"     '.spent==true'
+post /gateway/transfer "{\"wallet\":\"$A\",\"destination_chain\":\"baseSepolia\",\"amount\":\"0.1\"}";                                  check "gateway transfer"  '.transferred==true'
 post /bond      "{\"provider\":\"$A\",\"claimant\":\"$B\",\"amount\":\"0.01\"}";                                                       check "bond"              '.bond_id!=null'
 BID="$(printf '%s' "$RESP" | jq -r .bond_id)"; post "/bond/$BID/resolve" "{\"passed\":false}";                                         check "bond resolve"      '.status=="slashed"'
 post /workflow/approve "{\"intents\":[{\"to\":\"$A\",\"amount\":\"0.01\"}]}";                                                          check "workflow approve"  '.wfid!=null'

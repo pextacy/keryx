@@ -1,7 +1,8 @@
 """Capability index — a machine-readable map of every primitive and its provenance.
 
 Each entry names a capability, its HTTP endpoints, the category, and (where it's a port of a
-Circle open-source repo) the upstream under ``vendor/circle/``. Powers GET /capabilities so the
+Circle open-source repo) the upstream adopted under ``apps/`` (or ``contracts/vendor/``). Powers
+GET /capabilities so the
 dashboard and reviewers get one source of truth for what the agent does and where it came from.
 """
 
@@ -135,7 +136,8 @@ CAPABILITIES: tuple[Capability, ...] = (
         "Approved-action workflow",
         "settlement",
         ("POST /workflow/approve", "POST /workflow/{id}/execute"),
-        "Approve a settlement batch, execute in order — nothing unapproved settles.",
+        "Approve a settlement batch, execute in order — nothing unapproved settles. Runs "
+        "Circle's OOAK WorkflowManager directly (vendored, in-process), not a reimplementation.",
         upstream="circle-ooak",
         example='curl -s localhost:8000/workflow/approve -d \'{"intents":[{"to":"0xa..a","amount":"0.01"}]}\' -H content-type:application/json',
     ),
@@ -158,10 +160,16 @@ CAPABILITIES: tuple[Capability, ...] = (
     Capability(
         "Gateway unified balance",
         "treasury",
-        ("POST /gateway/deposit", "POST /gateway/spend", "GET /gateway/{wallet}"),
-        "Deposit USDC from many chains into one Arc-spendable balance.",
+        (
+            "POST /gateway/deposit",
+            "POST /gateway/spend",
+            "POST /gateway/transfer",
+            "GET /gateway/{wallet}",
+        ),
+        "Deposit USDC from many chains into one Arc-spendable balance; spend on Arc or "
+        "transfer back out cross-chain (burn/mint) to any recipient.",
         upstream="arc-multichain-wallet",
-        example='curl -s localhost:8000/gateway/deposit -d \'{"wallet":"0xa..a","chain":"avalancheFuji","amount":"0.5"}\' -H content-type:application/json',
+        example='curl -s localhost:8000/gateway/transfer -d \'{"wallet":"0xa..a","destination_chain":"baseSepolia","amount":"0.2"}\' -H content-type:application/json',
     ),
     Capability(
         "Milestone escrow",

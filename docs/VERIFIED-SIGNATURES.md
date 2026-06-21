@@ -4,8 +4,8 @@ Phase 1 (M0) mandates: **verify every signature against source + live docs at bu
 time — never trust signatures reproduced from planning files.** This file records
 what was verified, from where, and when, so the rest of the build trusts source.
 
-**Verified 2026-06-19** against `vendor/arc-nanopayments` (`circlefin/arc-nanopayments`,
-Apache-2.0, commit pinned in `vendor/`) — files `lib/x402.ts`, `agent.mts`,
+**Verified 2026-06-19** against `apps/arc-nanopayments` (`circlefin/arc-nanopayments`,
+Apache-2.0, adopted in-tree) — files `lib/x402.ts`, `agent.mts`,
 `generate-wallets.mts` — and the live Arc testnet RPC.
 
 ## Arc Testnet constants

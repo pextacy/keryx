@@ -22,6 +22,10 @@ db/        Neon migrations (index/registry/cache only — chain is canonical)
 contracts/ on-chain attribution layer (Foundry): ERC-8004-inspired identity/reputation/
            validation + signed-attestation log + weighted citation splitter (USDC still
            settles via Circle Gateway — we don't reimplement it)
+           vendor/  Circle's recibo + refund-protocol, adopted as standalone Foundry projects
+apps/      Circle's open-source Arc apps, adopted standalone & in-tree (see apps/README.md).
+           circle-ooak is installed and used directly by the agent (/workflow/*); the rest
+           are runnable Next.js apps. Provenance + LICENSEs in NOTICE.
 ```
 
 **Chain is the ledger.** Settlement clears on Arc; Postgres (Neon + pgvector) holds only
@@ -54,8 +58,10 @@ splits (every payout sums to the input down to the micro-USDC, never overpaying)
 | Traction | `GET /traction`, `/history` | settled volume rolled up + a unified recent-settlements feed |
 | On-chain (opt-in) | `GET /identity`, `/job/{id}`, `/validation/{h}` | ERC-8004 identity/reputation/validation + ERC-8183 job escrow |
 
-**Ported from Circle's open-source Arc repos** (vendored under `vendor/circle/`, see [`NOTICE`](NOTICE)) —
-each the offline analogue of the upstream, settling through the same rail:
+**Built over Circle's open-source Arc repos** — adopted in-tree as standalone apps under
+[`apps/`](apps/README.md) (Foundry projects under `contracts/vendor/`), see [`NOTICE`](NOTICE).
+The agent's endpoints are the offline analogue of each upstream, settling through the same rail;
+the approved-action workflow runs Circle's OOAK library (`apps/circle-ooak`) **directly**:
 
 | Capability | Endpoint | Ported from |
 | --- | --- | --- |
@@ -67,7 +73,7 @@ each the offline analogue of the upstream, settling through the same rail:
 | Refund / dispute | `POST /refund/{tx}` | `refund-protocol` |
 | Structured + confidential + threaded memos | `GET /memos`, `/memo/{tx}/thread` | `recibo` |
 | Treasury + sweep | `GET /treasury`, `POST /treasury/sweep` | `arc-fintech` |
-| Gateway unified balance | `POST /gateway/deposit`, `…/spend` | `arc-multichain-wallet` |
+| Gateway unified balance | `POST /gateway/deposit`, `…/spend`, `…/transfer` | `arc-multichain-wallet` |
 | Milestone escrow | `POST /escrow`, `…/release` | `arc-escrow` |
 | Recurring schedule | `POST /schedule`, `…/run` | `arc-fintech` |
 | Agent-tool manifest | `GET /agent/tools`, `/capabilities` | `agent-stack-starter-kits` |

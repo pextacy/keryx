@@ -32,14 +32,25 @@ class Deposit:
     tx_hash: str | None
 
 
+@dataclass(frozen=True)
+class Withdrawal:
+    """One cross-chain transfer out of the unified balance (burn here, mint on ``chain``)."""
+
+    chain: str
+    amount: Decimal
+    recipient: str
+    tx_hash: str | None
+
+
 @dataclass
 class UnifiedAccount:
-    """A wallet's unified balance and its per-chain deposit provenance."""
+    """A wallet's unified balance plus its deposit (in) and withdrawal (out) provenance."""
 
     wallet: str
     balance: Decimal = Decimal(0)
     by_chain: dict[str, Decimal] = field(default_factory=dict)
     deposits: list[Deposit] = field(default_factory=list)
+    withdrawals: list[Withdrawal] = field(default_factory=list)
 
 
 def _q(value: Decimal) -> Decimal:
@@ -104,6 +115,30 @@ class GatewayBook:
         acct.balance = _q(acct.balance - _q(amount))
         if acct.balance < 0:
             acct.balance = Decimal(0)
+        return acct
+
+    def prepare_transfer(self, wallet: str, dest_chain: str, amount: Decimal) -> Decimal:
+        """Validate a cross-chain transfer out of the unified balance without mutating it
+        (arc-multichain-wallet's burn/mint move). Checks the destination chain is supported and
+        the unified balance covers it. Raises GatewayError otherwise; returns the amount."""
+        normalize_chain(dest_chain)  # reject unknown destination before any settlement
+        return self.prepare_spend(wallet, amount)
+
+    def settled_transfer(
+        self,
+        wallet: str,
+        amount: Decimal,
+        dest_chain: str,
+        recipient: str,
+        tx_hash: str | None = None,
+    ) -> UnifiedAccount:
+        """Burn ``amount`` from the unified balance and record the mint on ``dest_chain`` to
+        ``recipient`` (call after settlement succeeds). Mirrors settled_spend's draw-down."""
+        canonical = normalize_chain(dest_chain)
+        acct = self.settled_spend(wallet, amount)
+        acct.withdrawals.append(
+            Withdrawal(chain=canonical, amount=_q(amount), recipient=recipient, tx_hash=tx_hash)
+        )
         return acct
 
     def summary(self) -> dict[str, object]:

@@ -180,6 +180,24 @@ AGENT_TOOLS: tuple[AgentTool, ...] = (
         ("payer", "payee", "amount", "runs"),
     ),
     AgentTool(
+        "gateway_transfer",
+        "Move USDC out of a wallet's unified Gateway balance to a destination chain (burn/mint), "
+        "optionally to an external recipient. Use to settle or withdraw a chain-abstracted "
+        "balance onto a specific chain.",
+        "POST",
+        "/gateway/transfer",
+        {
+            "wallet": _wallet("Wallet transferring from its unified balance"),
+            "destination_chain": {
+                "type": "string",
+                "enum": ["arcTestnet", "avalancheFuji", "baseSepolia"],
+            },
+            "amount": _usdc("Amount to move out of the unified balance"),
+            "recipient": _wallet("Recipient on the destination chain (defaults to wallet)"),
+        },
+        ("wallet", "destination_chain", "amount"),
+    ),
+    AgentTool(
         "approve_workflow",
         "Approve a batch of settlement intents that then execute in order — nothing settles "
         "that wasn't approved. Use to plan and authorize a payment batch before executing it.",

@@ -12,9 +12,11 @@ until their `KERYX_*_ENABLED` flag is set.
 
 ## Vendored Circle ports
 
-Beyond the original nanopayment primitives, several capabilities are concrete ports of
-Circle's open-source Arc repos (vendored under `vendor/circle/`, see [`NOTICE`](../NOTICE)).
-Each is the offline analogue of the upstream's pattern, settling through the same rail:
+Beyond the original nanopayment primitives, several capabilities build over Circle's
+open-source Arc repos — adopted in-tree as standalone apps under `apps/` (Foundry projects
+under `contracts/vendor/`), see [`NOTICE`](../NOTICE). Each agent endpoint is the offline
+analogue of the upstream's pattern, settling through the same rail (the approved-action
+workflow runs `apps/circle-ooak` directly):
 
 | Capability | Endpoints | Ported from |
 | --- | --- | --- |
@@ -27,7 +29,7 @@ Each is the offline analogue of the upstream's pattern, settling through the sam
 | Structured + confidential + threaded memos | `GET /memos`, `/memo/{tx}/thread` | `recibo` |
 | Treasury + sweep | `GET /treasury`, `POST /treasury/sweep` | `arc-fintech` |
 | Recurring payment schedule | `POST /schedule`, `/schedule/{id}/run` | `arc-fintech` |
-| Gateway unified balance | `POST /gateway/deposit`, `/spend`, `GET /gateway/{wallet}` | `arc-multichain-wallet` |
+| Gateway unified balance | `POST /gateway/deposit`, `/spend`, `/transfer`, `GET /gateway/{wallet}` | `arc-multichain-wallet` |
 | Milestone escrow | `POST /escrow`, `/escrow/{id}/release` | `arc-escrow` |
 | ERC-8183 job escrow | `GET /job/{id}` (+ bond anchor) | `arc-escrow` |
 | Agent-tool manifest | `GET /agent/tools`, `/capabilities` | `agent-stack-starter-kits` |
@@ -278,10 +280,12 @@ curl -s localhost:8000/order/$OID/checkout   # settles every line; status "paid"
 curl -s localhost:8000/order/$OID            # -> {"total":"0.005000","paid":"0.005000","items":[...]}
 ```
 
-## Gateway unified balance — deposit cross-chain, spend on Arc (arc-multichain-wallet)
+## Gateway unified balance — deposit cross-chain, spend on Arc, transfer back out (arc-multichain-wallet)
 
 Deposit USDC from several source chains (`arcTestnet`, `avalancheFuji`, `baseSepolia`) into one
 unified balance, then spend it on Arc — the offline analogue of Circle Gateway's unified balance.
+`transfer` ports the wallet's other headline move: a cross-chain **burn/mint** that takes funds
+back out of the unified balance onto a destination chain (optionally to an external recipient).
 
 ```bash
 curl -s localhost:8000/gateway/chains   # -> {"chains":["arcTestnet","avalancheFuji","baseSepolia"]}
@@ -289,7 +293,9 @@ curl -s localhost:8000/gateway/deposit -H 'content-type: application/json' \
   -d '{"wallet":"0xa...a","chain":"avalancheFuji","amount":"0.5"}'
 curl -s localhost:8000/gateway/spend -H 'content-type: application/json' \
   -d '{"wallet":"0xa...a","to":"0xc...c","amount":"0.2"}'   # draws the unified pool, settles on Arc
-curl -s localhost:8000/gateway/0xa...a   # -> {"balance":"0.300000","by_chain":{"avalancheFuji":"0.5"},...}
+curl -s localhost:8000/gateway/transfer -H 'content-type: application/json' \
+  -d '{"wallet":"0xa...a","destination_chain":"baseSepolia","amount":"0.1","recipient":"0xd...d"}'
+curl -s localhost:8000/gateway/0xa...a   # -> {"balance":"0.200000","by_chain":{...},"withdrawals":[...]}
 ```
 
 ## Milestone escrow — lock a total, release in approved tranches (arc-escrow)

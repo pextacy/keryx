@@ -136,17 +136,28 @@ export interface GatewayDeposit {
   tx_hash: string | null;
 }
 
+export interface GatewayWithdrawal {
+  chain: string;
+  amount: string;
+  recipient: string;
+  tx_hash: string | null;
+}
+
 export interface GatewayResponse {
   found?: boolean;
   wallet: string;
   balance: string;
   by_chain?: Record<string, string>;
   deposits?: GatewayDeposit[];
+  withdrawals?: GatewayWithdrawal[];
   deposited?: boolean;
   spent?: boolean;
+  transferred?: boolean;
   amount?: string;
   to?: string;
   chain?: string;
+  destination_chain?: string;
+  recipient?: string;
   tx_hash?: string;
   error?: string;
 }

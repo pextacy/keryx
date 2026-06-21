@@ -18,6 +18,8 @@ export function GatewayPanel() {
   const [amount, setAmount] = useState("0.5");
   const [spendTo, setSpendTo] = useState("0x" + "c".repeat(40));
   const [spendAmt, setSpendAmt] = useState("0.2");
+  const [destChain, setDestChain] = useState<(typeof CHAINS)[number]>("baseSepolia");
+  const [xferAmt, setXferAmt] = useState("0.1");
   const [acct, setAcct] = useState<GatewayResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,6 +62,27 @@ export function GatewayPanel() {
     }
   }
 
+  async function transfer() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await postJson<GatewayResponse>("/api/gateway/transfer", {
+        wallet,
+        destination_chain: destChain,
+        amount: xferAmt,
+      });
+      if (r.error) setError(r.error);
+      else {
+        setAcct(r);
+        if (r.transferred) notify(`Transferred ${r.amount} to ${r.destination_chain}`, r.tx_hash);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function refresh() {
     setError(null);
     try {
@@ -72,7 +95,7 @@ export function GatewayPanel() {
   return (
     <Card
       title="Gateway unified balance"
-      subtitle="Deposit USDC from many chains into one Arc-spendable balance (multichain-wallet)"
+      subtitle="Deposit from many chains, spend on Arc, or transfer back out cross-chain (multichain-wallet)"
     >
       <Field label="Wallet">
         <input
@@ -150,6 +173,35 @@ export function GatewayPanel() {
             </button>
           </div>
 
+          <div className="mt-3 flex items-end gap-2">
+            <Field label="Transfer to chain">
+              <select
+                value={destChain}
+                onChange={(e) => setDestChain(e.target.value as (typeof CHAINS)[number])}
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                {CHAINS.map((ch) => (
+                  <option key={ch}>{ch}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Amount">
+              <input
+                value={xferAmt}
+                onChange={(e) => setXferAmt(e.target.value)}
+                className="w-20 rounded border border-gray-300 px-2 py-1 font-mono"
+              />
+            </Field>
+            <button
+              type="button"
+              onClick={() => void transfer()}
+              disabled={busy || Number(acct.balance) <= 0}
+              className="mb-1 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Transfer
+            </button>
+          </div>
+
           {acct.by_chain && Object.keys(acct.by_chain).length > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
               {Object.entries(acct.by_chain).map(([c, amt]) => (
@@ -172,6 +224,22 @@ export function GatewayPanel() {
                       +{d.amount} from {d.chain}
                     </span>
                     {d.tx_hash && <TxLink hash={d.tx_hash} prefix="tx" />}
+                  </li>
+                ))}
+            </ul>
+          )}
+
+          {acct.withdrawals && acct.withdrawals.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs">
+              {acct.withdrawals
+                .slice()
+                .reverse()
+                .map((w, i) => (
+                  <li key={i} className="flex items-center justify-between gap-2 font-mono">
+                    <span className="text-gray-500">
+                      −{w.amount} to {w.chain}
+                    </span>
+                    {w.tx_hash && <TxLink hash={w.tx_hash} prefix="tx" />}
                   </li>
                 ))}
             </ul>

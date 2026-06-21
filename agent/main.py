@@ -47,6 +47,7 @@ from shared.credits import CREDIT_TIERS, CreditBook, CreditError, tier_by_name
 from shared.escrow import EscrowBook, EscrowError
 from shared.gateway import SUPPORTED_CHAINS, GatewayBook, GatewayError, normalize_chain
 from shared.memo import Memo, build_memo
+from shared.ooak_workflow import WorkflowError, WorkflowManager
 from shared.orders import OrderBook, OrderError
 from shared.p2p import RequestBook, RequestError
 from shared.qf import Project, quadratic_match
@@ -59,7 +60,6 @@ from shared.swap import quote as swap_quote
 from shared.traction import TractionBook
 from shared.treasury import Treasury, TreasuryError
 from shared.types import Attestation, CitationIntent, SettlementStatus
-from shared.workflow import WorkflowError, WorkflowManager
 
 
 def build_rail() -> Rail:
@@ -301,6 +301,11 @@ def _sample_ported_round(seed: int) -> None:
         sp_tx = _settle_to(f"demo-gwspend:{seed}", w(seed + 19), spend_amt, kind="gateway_spend")
         if sp_tx is not None:
             _gateway.settled_spend(w(seed + 18), spend_amt)
+        # ...then transfer part of the remaining unified balance back out cross-chain (burn/mint).
+        xfer_amt = _gateway.prepare_transfer(w(seed + 18), "baseSepolia", Decimal("0.001"))
+        xfer_tx = _settle_to(f"demo-gwxfer:{seed}", w(seed + 19), xfer_amt, kind="gateway_transfer")
+        if xfer_tx is not None:
+            _gateway.settled_transfer(w(seed + 18), xfer_amt, "baseSepolia", w(seed + 19), xfer_tx)
     # Milestone escrow: open a 2-tranche agreement and release the first milestone.
     escrow = _escrows.create(
         w(seed + 12), w(seed + 13), [("draft", Decimal("0.002")), ("final", Decimal("0.003"))]
@@ -1524,6 +1529,15 @@ def _gateway_view(acct: Any) -> dict[str, Any]:
         "deposits": [
             {"chain": d.chain, "amount": str(d.amount), "tx_hash": d.tx_hash} for d in acct.deposits
         ],
+        "withdrawals": [
+            {
+                "chain": w.chain,
+                "amount": str(w.amount),
+                "recipient": w.recipient,
+                "tx_hash": w.tx_hash,
+            }
+            for w in acct.withdrawals
+        ],
     }
 
 
@@ -1591,6 +1605,61 @@ def gateway_spend(req: GatewaySpend) -> dict[str, Any]:
         "spent": True,
         "amount": str(amount),
         "to": req.to,
+        "tx_hash": tx_hash,
+        **_gateway_view(acct),
+    }
+
+
+class GatewayTransfer(BaseModel):
+    wallet: str = Field(description="0x wallet transferring from its unified balance")
+    destination_chain: str = Field(description=f"Chain to mint on ({', '.join(SUPPORTED_CHAINS)})")
+    amount: Decimal = Field(gt=0, description="USDC to move out of the unified balance")
+    recipient: str | None = Field(
+        default=None, description="0x recipient on the destination chain (defaults to wallet)"
+    )
+
+    @field_validator("wallet", "recipient")
+    @classmethod
+    def _check_wallet(cls, v: str | None) -> str | None:
+        if v is not None and not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+@app.post("/gateway/transfer", tags=["primitives"])
+def gateway_transfer(req: GatewayTransfer) -> dict[str, Any]:
+    """Transfer USDC out of a wallet's unified Gateway balance to a destination chain (ported
+    from circlefin/arc-multichain-wallet's burn/mint move). Validates the destination chain and
+    sufficient balance, settles via the rail to the recipient (defaults to the wallet itself —
+    a self-withdrawal), then burns the amount from the unified balance and records the mint.
+    Nothing is drawn if validation or settlement fails (two-step prepare/settled)."""
+    try:
+        amount = _gateway.prepare_transfer(req.wallet, req.destination_chain, req.amount)
+    except GatewayError as exc:
+        return {"error": str(exc), "wallet": req.wallet}
+    recipient = req.recipient or req.wallet
+    chain = normalize_chain(req.destination_chain)
+    tx_hash = _settle_to(
+        f"gateway-transfer:{req.wallet}", recipient, amount, kind="gateway_transfer"
+    )
+    if tx_hash is None:
+        return {"error": "settlement_failed", "wallet": req.wallet}
+    acct = _gateway.settled_transfer(req.wallet, amount, chain, recipient, tx_hash)
+    _record_memo(
+        tx_hash,
+        build_memo(
+            kind="other",
+            ref="gateway-transfer",
+            note=f"transferred {amount} USDC to {chain}",
+            message_from=req.wallet,
+            message_to=recipient,
+        ),
+    )
+    return {
+        "transferred": True,
+        "amount": str(amount),
+        "destination_chain": chain,
+        "recipient": recipient,
         "tx_hash": tx_hash,
         **_gateway_view(acct),
     }
