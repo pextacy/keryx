@@ -118,6 +118,7 @@ on-chain reads — see [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md).
 make check          # gates: ruff lint + mypy --strict + pytest (219 passing)
 make kitchen-sink   # boots the agent and curls every primitive end-to-end, PASS/FAIL per
                     # capability (29 checks) — the one-command "does it all work" proof
+make verify         # both of the above, in order (static gates then end-to-end)
 ```
 
 ## Quickstart (web surface)

@@ -1,4 +1,4 @@
-.PHONY: install lint fmt typecheck test check rail agent db-check demo fleet capabilities-demo capabilities-fleet kitchen-sink
+.PHONY: install lint fmt typecheck test check verify rail agent db-check demo fleet capabilities-demo capabilities-fleet kitchen-sink
 
 install:
 	pip install -e ".[dev]"
@@ -16,6 +16,9 @@ test:
 	pytest
 
 check: lint typecheck test
+
+# Full verification: static gates (lint + types + tests) then the end-to-end primitive sweep.
+verify: check kitchen-sink
 
 rail:
 	uvicorn rail.main:app --reload
