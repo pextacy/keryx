@@ -13,7 +13,20 @@ const KIND_LABEL: Record<string, string> = {
   qf: "Quadratic funding",
   retro: "Retroactive funding",
   send: "Memo'd sends",
+  swap: "Stablecoin swaps",
+  refund: "Refunds",
 };
+
+// Relative share of total volume for one kind — a horizontal bar (no time series exists,
+// so this shows the mix, not a trend).
+function ShareBar({ value, total }: { value: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, (value / total) * 100) : 0;
+  return (
+    <div className="mt-0.5 h-1 w-full overflow-hidden rounded bg-gray-100">
+      <div className="h-full rounded bg-green-500" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
 
 export function TractionPanel() {
   const [data, setData] = useState<TractionResponse | null>(null);
@@ -92,13 +105,16 @@ export function TractionPanel() {
             </div>
           </div>
 
-          <ul className="mt-4 space-y-1 text-sm">
+          <ul className="mt-4 space-y-2 text-sm">
             {Object.entries(data.by_kind).map(([kind, s]) => (
-              <li key={kind} className="flex items-center justify-between font-mono">
-                <span className="text-gray-600">{KIND_LABEL[kind] ?? kind}</span>
-                <span>
-                  {s.count}× · <span className="text-green-700">{s.volume_usdc}</span>
-                </span>
+              <li key={kind} className="font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">{KIND_LABEL[kind] ?? kind}</span>
+                  <span>
+                    {s.count}× · <span className="text-green-700">{s.volume_usdc}</span>
+                  </span>
+                </div>
+                <ShareBar value={Number(s.volume_usdc)} total={Number(data.total_volume_usdc)} />
               </li>
             ))}
             {Object.keys(data.by_kind).length === 0 && (

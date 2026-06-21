@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { errorMessage, postJson } from "@/lib/api";
-import { ARC_EXPLORER_TX } from "@/lib/types";
 import type { BondResponse } from "@/lib/capabilities";
 import { Card, ErrorNote, Field } from "./Card";
+import { TxLink } from "./TxLink";
 
 export function BondPanel() {
   const [provider, setProvider] = useState("0x" + "1".repeat(40));
@@ -112,21 +112,13 @@ export function BondPanel() {
           {bond.tx_hash && (
             <div className="flex justify-between">
               <span className="text-gray-500">slash tx</span>
-              <a href={ARC_EXPLORER_TX + bond.tx_hash} target="_blank" className="text-blue-600 underline">
-                {bond.tx_hash.slice(0, 14)}…
-              </a>
+              <TxLink hash={bond.tx_hash} prefix="" />
             </div>
           )}
           {bond.escrow?.tx_hash && (
             <div className="flex justify-between">
               <span className="text-gray-500">escrow anchor</span>
-              <a
-                href={ARC_EXPLORER_TX + bond.escrow.tx_hash}
-                target="_blank"
-                className="text-blue-600 underline"
-              >
-                {bond.escrow.tx_hash.slice(0, 14)}…
-              </a>
+              <TxLink hash={bond.escrow.tx_hash} prefix="" />
             </div>
           )}
         </dl>

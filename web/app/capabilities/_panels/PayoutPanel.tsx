@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { errorMessage, postJson } from "@/lib/api";
-import { ARC_EXPLORER_TX } from "@/lib/types";
 import type { PayoutResponse } from "@/lib/capabilities";
 import { Card, ErrorNote, Field } from "./Card";
+import { TxLink } from "./TxLink";
 
 interface Row {
   wallet: string;
@@ -105,11 +105,7 @@ export function PayoutPanel() {
               <span className="truncate">{r.wallet.slice(0, 12)}… · share {r.share}</span>
               <span className="flex items-center gap-2">
                 <span className="text-green-700">{r.amount}</span>
-                {r.tx_hash && (
-                  <a href={ARC_EXPLORER_TX + r.tx_hash} target="_blank" className="text-blue-600 underline">
-                    tx
-                  </a>
-                )}
+                {r.tx_hash && <TxLink hash={r.tx_hash} prefix="tx" chars={0} />}
               </span>
             </li>
           ))}
