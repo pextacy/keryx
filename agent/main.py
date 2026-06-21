@@ -43,6 +43,7 @@ from shared.bonds import BondAlreadyResolved, BondBook, BondStatus
 from shared.capability_index import index as capability_index
 from shared.config import settings
 from shared.credits import CREDIT_TIERS, CreditBook, CreditError, tier_by_name
+from shared.escrow import EscrowBook, EscrowError
 from shared.gateway import SUPPORTED_CHAINS, GatewayBook, GatewayError, normalize_chain
 from shared.memo import Memo, build_memo
 from shared.p2p import RequestBook, RequestError
@@ -187,6 +188,9 @@ _credits = CreditBook()
 # Gateway unified balance (ported from circlefin/arc-multichain-wallet): deposit USDC from
 # multiple source chains into one Arc-spendable balance.
 _gateway = GatewayBook()
+# Milestone escrow (ported from circlefin/arc-escrow): a total locked across tranches that
+# release to the provider on approval.
+_escrows = EscrowBook()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -1529,6 +1533,102 @@ def gateway_balance(wallet: str) -> dict[str, Any]:
     return {"found": True, **_gateway_view(acct)}
 
 
+# --- Milestone escrow (arc-escrow staged agreement → release) ---
+
+
+class MilestoneInput(BaseModel):
+    label: str = Field(min_length=1, max_length=80, description="What this tranche pays for")
+    amount: Decimal = Field(gt=0, description="USDC released when this milestone is approved")
+
+
+class EscrowCreate(BaseModel):
+    client: str = Field(description="0x wallet funding the escrow")
+    provider: str = Field(description="0x wallet that receives released tranches")
+    milestones: list[MilestoneInput] = Field(min_length=1, description="Ordered tranches")
+
+    @field_validator("client", "provider")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+
+def _escrow_view(esc: Any) -> dict[str, Any]:
+    return {
+        "id": esc.id,
+        "client": esc.client,
+        "provider": esc.provider,
+        "total": str(esc.total),
+        "released": str(esc.released()),
+        "locked": str(esc.locked()),
+        "status": esc.status.value,
+        "milestones": [
+            {
+                "label": m.label,
+                "amount": str(m.amount),
+                "status": m.status.value,
+                "tx_hash": m.tx_hash,
+            }
+            for m in esc.milestones
+        ],
+    }
+
+
+@app.post("/escrow", tags=["primitives"])
+def create_escrow(req: EscrowCreate) -> dict[str, Any]:
+    """Open a milestone escrow — a client locks a total split across tranches that release to
+    the provider on approval (ported from circlefin/arc-escrow's staged agreement)."""
+    try:
+        esc = _escrows.create(
+            req.client, req.provider, [(m.label, m.amount) for m in req.milestones]
+        )
+    except EscrowError as exc:
+        return {"error": str(exc)}
+    return _escrow_view(esc)
+
+
+class ReleaseRequest(BaseModel):
+    index: int = Field(ge=0, description="Milestone index to release")
+
+
+@app.post("/escrow/{eid}/release", tags=["primitives"])
+def release_escrow(eid: str, req: ReleaseRequest) -> dict[str, Any]:
+    """Approve and release one milestone's tranche to the provider — settles via the rail, then
+    marks the milestone released (two-step so a failed settlement never marks it paid)."""
+    esc = _escrows.get(eid)
+    if esc is None:
+        return {"found": False, "id": eid}
+    try:
+        milestone = _escrows.prepare_release(eid, req.index)
+    except EscrowError as exc:
+        return {"error": str(exc), "id": eid}
+    tx_hash = _settle_to(f"escrow:{eid}:{req.index}", esc.provider, milestone.amount, kind="escrow")
+    if tx_hash is None:
+        return {"error": "settlement_failed", "id": eid}
+    _escrows.released(milestone, tx_hash)
+    _record_memo(
+        tx_hash,
+        build_memo(
+            kind="job",
+            ref=f"{eid}#{req.index}",
+            note=f"milestone '{milestone.label}' released",
+            message_from=esc.client,
+            message_to=esc.provider,
+        ),
+    )
+    return {"released": True, "tx_hash": tx_hash, **_escrow_view(esc)}
+
+
+@app.get("/escrow/{eid}", tags=["primitives"])
+def get_escrow(eid: str) -> dict[str, Any]:
+    """Read a milestone escrow — released vs locked, per-milestone status."""
+    esc = _escrows.get(eid)
+    if esc is None:
+        return {"found": False, "id": eid}
+    return {"found": True, **_escrow_view(esc)}
+
+
 @app.get("/balance", tags=["ledger-ops"])
 def balance() -> dict[str, Any]:
     """Unified balance — one aggregated view of the agent's economic state across every book
@@ -1540,6 +1640,7 @@ def balance() -> dict[str, Any]:
         "requests": _requests.summary(),
         "treasury": _treasury_view(),
         "gateway": _gateway.summary(),
+        "escrow": _escrows.summary(),
     }
 
 
@@ -1695,7 +1796,7 @@ def demo_reset() -> dict[str, Any]:
 
     Does NOT touch the citation ledger or any chain state — only the primitive sandboxes."""
     global traction, bonds, streams, _demo_offset
-    global _credits, _requests, _workflows, _treasury, _gateway
+    global _credits, _requests, _workflows, _treasury, _gateway, _escrows
     traction = TractionBook()
     bonds = BondBook()
     streams = StreamBook()
@@ -1704,6 +1805,7 @@ def demo_reset() -> dict[str, Any]:
     _workflows = WorkflowManager()
     _treasury = Treasury(wallet=_CREDIT_TREASURY)
     _gateway = GatewayBook()
+    _escrows = EscrowBook()
     _memos.clear()
     _memo_objs.clear()
     _sends.clear()
@@ -1744,6 +1846,7 @@ def _books_summary() -> dict[str, Any]:
         },
         "workflows": _workflows.summary(),
         "gateway": _gateway.summary(),
+        "escrow": _escrows.summary(),
         "memos": len(_memo_objs),
         "sends": len(_sends),
     }
