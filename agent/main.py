@@ -50,6 +50,7 @@ from shared.swap import SwapError
 from shared.swap import quote as swap_quote
 from shared.traction import TractionBook
 from shared.types import Attestation, CitationIntent, SettlementStatus
+from shared.workflow import WorkflowError, WorkflowManager
 
 
 def build_rail() -> Rail:
@@ -165,6 +166,9 @@ def _record_memo(tx_hash: str, memo: Memo) -> None:
 # Refundable sends (tx_hash -> {to, amount, refunded}) for the dispute/refund flow
 # (inspired by circlefin/refund-protocol — stablecoin payment disputes).
 _sends: dict[str, dict[str, Any]] = {}
+# Approved-action workflows (ported from circlefin/circle-ooak): a batch of settlement
+# intents is approved once, then executed in order — nothing settles that wasn't approved.
+_workflows = WorkflowManager()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -1027,6 +1031,86 @@ def swap(req: SwapRequest) -> dict[str, Any]:
     payload = _quote_payload(q)
     payload.update({"to": destination, "settled": tx_hash is not None, "tx_hash": tx_hash})
     return payload
+
+
+# --- Approved-action settlement workflows (circle-ooak intent/approve/execute) ---
+
+
+class SettlementIntent(BaseModel):
+    to: str = Field(description="0x recipient wallet")
+    amount: Decimal = Field(gt=0, description="USDC to settle")
+    kind: str = Field(default="workflow", description="Traction kind for this settlement")
+
+    @field_validator("to")
+    @classmethod
+    def _check_wallet(cls, v: str) -> str:
+        if not _HEX_WALLET.match(v):
+            raise ValueError(f"invalid wallet: {v!r}")
+        return v
+
+    def args(self) -> dict[str, object]:
+        # Canonical args for intent matching (amount as string so JSON is stable).
+        return {"to": self.to, "amount": str(self.amount), "kind": self.kind}
+
+
+class ApproveRequest(BaseModel):
+    intents: list[SettlementIntent] = Field(min_length=1, description="Batch to approve together")
+
+
+@app.post("/workflow/intent", tags=["primitives"])
+def workflow_intent(req: SettlementIntent) -> dict[str, Any]:
+    """Phase 1 (circle-ooak): describe a settlement without running it — returns its intent."""
+    return _workflows.create_intent("settle", req.args())
+
+
+@app.post("/workflow/approve", tags=["primitives"])
+def workflow_approve(req: ApproveRequest) -> dict[str, Any]:
+    """Phase 2: approve a batch of settlement intents together; returns a workflow id."""
+    intents: list[dict[str, object]] = [
+        {"function": "settle", "args": i.args()} for i in req.intents
+    ]
+    try:
+        wfid = _workflows.approve(intents)
+    except WorkflowError as exc:
+        return {"error": str(exc)}
+    return {"wfid": wfid, "approved": len(intents)}
+
+
+@app.post("/workflow/{wfid}/execute", tags=["primitives"])
+def workflow_execute(wfid: str, req: SettlementIntent) -> dict[str, Any]:
+    """Phase 3: execute one approved settlement — it must match the approved next action, in
+    order. Settles via the rail only after the guard passes (nothing unapproved settles)."""
+    try:
+        action = _workflows.check(wfid, "settle", req.args())
+    except WorkflowError as exc:
+        return {"error": str(exc), "wfid": wfid}
+    tx_hash = _settle_to(f"workflow:{wfid}", req.to, req.amount, kind=req.kind)
+    _workflows.complete(wfid, action, tx_hash or "", ok=tx_hash is not None)
+    return {
+        "wfid": wfid,
+        "settled": tx_hash is not None,
+        "tx_hash": tx_hash,
+        "to": req.to,
+        "amount": str(req.amount),
+    }
+
+
+@app.get("/workflow/{wfid}", tags=["primitives"])
+def workflow_status(wfid: str) -> dict[str, Any]:
+    """Read a workflow's status and per-action progress (audit the approved settlement batch)."""
+    wf = _workflows.get(wfid)
+    if wf is None:
+        return {"found": False, "wfid": wfid}
+    return {
+        "found": True,
+        "wfid": wfid,
+        "status": wf.status.value,
+        "cursor": wf.cursor,
+        "remaining": wf.remaining(),
+        "actions": [
+            {"intent": a.intent, "status": a.status.value, "result": a.result} for a in wf.actions
+        ],
+    }
 
 
 def _memo_item(tx_hash: str) -> dict[str, Any]:
