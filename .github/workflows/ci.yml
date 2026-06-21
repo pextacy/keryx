@@ -45,6 +45,15 @@ jobs:
       - name: Test
         run: forge test -vvv
 
+  contracts-vendor:
+    name: Adopted contracts (recibo + refund-protocol)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Bootstrap deps + build each adopted Foundry project
+        run: make contracts-vendor
+
   web:
     name: Web (Next.js)
     runs-on: ubuntu-latest

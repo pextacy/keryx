@@ -38,6 +38,8 @@ apps/**/dist/
 apps/**/*.egg-info/
 contracts/vendor/**/out/
 contracts/vendor/**/cache/
+# Foundry deps for adopted contracts — bootstrapped by `make contracts-vendor`
+contracts/vendor/**/lib/
 
 # OS / editor
 .DS_Store
