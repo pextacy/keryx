@@ -241,6 +241,8 @@ export interface MemoMeta {
   message_to: string;
   version: number;
   scheme: string;
+  mime?: string;
+  in_reply_to?: string;
 }
 
 export interface MemoItem {
@@ -252,6 +254,14 @@ export interface MemoItem {
 export interface MemosResponse {
   count: number;
   memos: MemoItem[];
+}
+
+export interface MemoThreadResponse {
+  found: boolean;
+  tx_hash: string;
+  memo?: MemoItem;
+  ancestors?: MemoItem[];
+  replies?: MemoItem[];
 }
 
 // On-chain read endpoints all share an opt-in `enabled` flag (default false).

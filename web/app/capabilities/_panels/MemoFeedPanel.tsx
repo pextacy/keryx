@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { errorMessage, getJson } from "@/lib/api";
 import { ARC_EXPLORER_TX } from "@/lib/types";
-import type { MemosResponse } from "@/lib/capabilities";
+import type { MemoThreadResponse, MemosResponse } from "@/lib/capabilities";
 import { Copy } from "@/app/Copy";
 import { Card, ErrorNote, Field } from "./Card";
 
@@ -41,12 +41,14 @@ function kindColor(kind?: string): string {
 export function MemoFeedPanel() {
   const [kind, setKind] = useState<(typeof KINDS)[number]>("");
   const [data, setData] = useState<MemosResponse | null>(null);
+  const [thread, setThread] = useState<MemoThreadResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
     setBusy(true);
     setError(null);
+    setThread(null);
     try {
       const q = kind ? `?kind=${encodeURIComponent(kind)}&limit=15` : "?limit=15";
       setData(await getJson<MemosResponse>(`/api/memos${q}`));
@@ -54,6 +56,16 @@ export function MemoFeedPanel() {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function loadThread(tx: string) {
+    setError(null);
+    try {
+      const t = await getJson<MemoThreadResponse>(`/api/memo/${encodeURIComponent(tx)}/thread`);
+      setThread(t.tx_hash === thread?.tx_hash ? null : t); // toggle
+    } catch (err) {
+      setError(errorMessage(err));
     }
   }
 
@@ -116,6 +128,18 @@ export function MemoFeedPanel() {
                   {m.tx_hash.slice(0, 12)}…
                 </a>
                 <Copy text={m.tx_hash} />
+                {m.meta?.in_reply_to && (
+                  <span title="replies to a prior memo" className="text-[11px] text-gray-400">
+                    ↩ reply
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void loadThread(m.tx_hash)}
+                  className="text-[11px] text-gray-400 hover:text-gray-700"
+                >
+                  thread
+                </button>
               </div>
               {m.meta?.ref && (
                 <div className="mt-1 truncate font-mono text-xs text-gray-600" title={m.meta.ref}>
@@ -123,6 +147,27 @@ export function MemoFeedPanel() {
                 </div>
               )}
               {m.meta?.note && <div className="mt-0.5 text-xs text-gray-700">{m.meta.note}</div>}
+              {thread?.tx_hash === m.tx_hash && (
+                <div className="mt-2 space-y-1 border-l-2 border-gray-200 pl-2 text-xs">
+                  {thread.ancestors && thread.ancestors.length > 0 && (
+                    <div className="text-gray-500">
+                      ↑ replies to:{" "}
+                      {thread.ancestors
+                        .map((a) => a.meta?.note || a.tx_hash.slice(0, 10))
+                        .join(" → ")}
+                    </div>
+                  )}
+                  {thread.replies && thread.replies.length > 0 ? (
+                    thread.replies.map((r) => (
+                      <div key={r.tx_hash} className="text-gray-600">
+                        ↳ {r.meta?.note || r.tx_hash.slice(0, 10)}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-gray-400">no replies</div>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
