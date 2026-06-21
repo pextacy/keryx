@@ -287,6 +287,19 @@ export interface EscrowResponse {
   error?: string;
 }
 
+// Agent-tool manifest (GET /agent/tools) — primitives as tool-use schemas.
+export interface AgentTool {
+  name: string;
+  description: string;
+  route: { method: string; path: string };
+  input_schema: { type: string; properties: Record<string, unknown>; required: string[] };
+}
+
+export interface AgentToolManifest {
+  count: number;
+  tools: AgentTool[];
+}
+
 // Machine-readable capability index (GET /capabilities).
 export interface CapabilityEntry {
   name: string;

@@ -150,6 +150,13 @@ CAPABILITIES: tuple[Capability, ...] = (
         ("GET /balance",),
         "One aggregated view of settled volume + credits + treasury + gateway.",
     ),
+    Capability(
+        "Agent tools manifest",
+        "onchain",
+        ("GET /agent/tools", "GET /capabilities"),
+        "Keryx's primitives as tool-use schemas an LLM agent can discover and invoke.",
+        upstream="agent-stack-starter-kits",
+    ),
 )
 
 
