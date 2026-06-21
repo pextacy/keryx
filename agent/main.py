@@ -281,6 +281,7 @@ def ask(req: AskRequest) -> dict[str, Any]:
                 "amount": str(c.amount),
                 "tx_hash": c.tx_hash,
                 "cited": c.cited,
+                "author_wallet": author_wallets.get(c.source_url),
             }
             for c in result.citations
         ],

@@ -59,6 +59,15 @@ export default function LedgerPage() {
       <p className="mt-1 text-sm text-gray-500">
         Mirrors on-chain settlement — chain is canonical. Team vs external volume labeled.
       </p>
+      {rows.length > 0 && (
+        <button
+          type="button"
+          onClick={() => downloadCsv(rows)}
+          className="mt-3 rounded border px-3 py-1.5 text-sm"
+        >
+          Download CSV
+        </button>
+      )}
       {error && <p className="mt-4 rounded bg-red-50 p-3 text-red-700">{error}</p>}
 
       {metrics && (
@@ -115,6 +124,24 @@ export default function LedgerPage() {
       </table>
     </main>
   );
+}
+
+function downloadCsv(rows: Row[]): void {
+  const header = "source_url,author_wallet,g,amount,tx_hash,external,ts";
+  const body = rows
+    .map((r) =>
+      [r.source_url, r.author_wallet ?? "", r.g, r.amount, r.tx_hash, r.external, r.ts]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(","),
+    )
+    .join("\n");
+  const blob = new Blob([`${header}\n${body}`], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "keryx-ledger.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function ago(ts: number): string {

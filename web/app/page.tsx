@@ -10,6 +10,21 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [res, setRes] = useState<AskResponse | null>(null);
+  const [tipped, setTipped] = useState<Record<string, string>>({});
+
+  async function tip(sourceUrl: string, wallet: string) {
+    try {
+      const r = await fetch("/api/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: wallet, amount: "0.001", memo: `tip: ${sourceUrl}` }),
+      });
+      const data = await r.json();
+      if (data.tx_hash) setTipped((p) => ({ ...p, [sourceUrl]: data.tx_hash }));
+    } catch {
+      // best-effort tip; ignore
+    }
+  }
 
   async function ask(e: React.FormEvent) {
     e.preventDefault();
@@ -94,6 +109,24 @@ export default function Home() {
                         tx
                       </a>
                     )}
+                    {c.author_wallet &&
+                      (tipped[c.source_url] ? (
+                        <a
+                          href={ARC_EXPLORER_TX + tipped[c.source_url]}
+                          target="_blank"
+                          className="text-purple-600 underline"
+                        >
+                          tipped ✓
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => tip(c.source_url, c.author_wallet as string)}
+                          className="rounded border border-purple-300 px-1.5 text-xs text-purple-700"
+                        >
+                          tip $0.001
+                        </button>
+                      ))}
                   </span>
                 </li>
               ))}
