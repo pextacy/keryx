@@ -152,6 +152,50 @@ def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> st
     return None
 
 
+def _demo_wallet(n: int) -> str:
+    return "0x" + format(0x1000 + n, "040x")
+
+
+def _sample_round(seed: int) -> None:
+    """Drive one round of every primitive server-side (the /demo/run + UI volume button)."""
+    w = _demo_wallet
+    for i, (c, amt) in enumerate(
+        split_payout(
+            Decimal("0.006"),
+            [Contributor(w(seed + 1), Decimal(3)), Contributor(w(seed + 2), Decimal(1))],
+        )
+    ):
+        _settle_to(f"demo-payout:{seed}:{i}", c.wallet, amt, kind="payout")
+    for i, (c, amt) in enumerate(
+        split_payout(
+            Decimal("0.004"),
+            [Contributor(w(seed + 4), Decimal(8)), Contributor(w(seed + 5), Decimal(2))],
+        )
+    ):
+        _settle_to(f"demo-royalty:{seed}:{i}", c.wallet, amt, kind="royalty")
+    for i, (p, match) in enumerate(
+        quadratic_match(
+            Decimal("0.005"),
+            [Project(w(seed + 6), [Decimal(1)] * 4), Project(w(seed + 7), [Decimal(4)])],
+        )
+    ):
+        _settle_to(f"demo-qf:{seed}:{i}", p.wallet, match, kind="qf")
+    for i, (p, award) in enumerate(
+        quadratic_match(
+            Decimal("0.005"),
+            [Project(w(seed + 8), [Decimal(1)] * 5), Project(w(seed + 9), [Decimal(1)])],
+        )
+    ):
+        _settle_to(f"demo-retro:{seed}:{i}", p.wallet, award, kind="retro")
+    bond = bonds.post(provider=w(seed + 10), amount=Decimal("0.003"), claimant=w(seed + 11))
+    bonds.resolve(bond.id, passed=False)
+    _settle_to(f"demo-bond:{seed}", bond.claimant, bond.amount, kind="bond")
+    stream = streams.open(payer=w(seed), payee=w(seed + 1), rate=Decimal("0.001"))
+    billed = streams.tick(stream.id, Decimal(3))
+    streams.close(stream.id)
+    _settle_to(f"demo-stream:{seed}", stream.payee, billed, kind="stream")
+
+
 def _embedder_status() -> dict[str, Any]:
     """Live effective similarity path — dense only when keyed AND not degraded."""
     dense = isinstance(_embedder, VoyageEmbedder) and not _embedder.is_degraded
@@ -775,6 +819,26 @@ def retro(req: RetroRequest) -> dict[str, Any]:
 def get_traction() -> dict[str, Any]:
     """Settled volume rolled up across every primitive — the traction story in one call."""
     return traction.summary()
+
+
+class DemoRequest(BaseModel):
+    rounds: int = Field(default=3, ge=1, le=50, description="Rounds of every primitive to run")
+
+
+_demo_offset = 0
+
+
+@app.post("/demo/run")
+def demo_run(req: DemoRequest) -> dict[str, Any]:
+    """Generate sample volume server-side: run ``rounds`` of every primitive and return the
+    rolled-up traction. One call for the dashboard's 'generate volume' button (agents are the
+    users) — settles through the active rail like every other endpoint."""
+    global _demo_offset
+    start = _demo_offset
+    _demo_offset += req.rounds * 20 + 20  # distinct wallets across runs
+    for r in range(req.rounds):
+        _sample_round(start + r * 20)
+    return {"rounds": req.rounds, "traction": traction.summary()}
 
 
 @app.get("/status")

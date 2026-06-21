@@ -14,44 +14,6 @@ const KIND_LABEL: Record<string, string> = {
   retro: "Retroactive funding",
 };
 
-const w = (n: number) => "0x" + (0x1000 + n).toString(16).padStart(40, "0");
-
-// One round of each primitive, fired from the browser so a reviewer can populate traction.
-async function sampleRound(seed: number): Promise<void> {
-  await postJson("/api/payout", {
-    amount: "0.006",
-    contributors: [
-      { wallet: w(seed + 1), share: "3" },
-      { wallet: w(seed + 2), share: "2" },
-      { wallet: w(seed + 3), share: "1" },
-    ],
-  });
-  await postJson("/api/royalties", {
-    budget: "0.004",
-    plays: [{ wallet: w(seed + 4), count: 8 }, { wallet: w(seed + 5), count: 2 }],
-  });
-  await postJson("/api/qf", {
-    pool: "0.005",
-    projects: [
-      { wallet: w(seed + 6), contributions: ["1", "1", "1", "1"] },
-      { wallet: w(seed + 7), contributions: ["4"] },
-    ],
-  });
-  const bond = await postJson<{ bond_id: string }>("/api/bond", {
-    provider: w(seed + 8),
-    claimant: w(seed + 9),
-    amount: "0.003",
-  });
-  await postJson(`/api/bond/${bond.bond_id}/resolve`, { passed: false });
-  const s = await postJson<{ stream_id: string }>("/api/stream", {
-    payer: w(seed),
-    payee: w(seed + 1),
-    rate: "0.001",
-  });
-  await postJson(`/api/stream/${s.stream_id}/tick`, { seconds: "3" });
-  await postJson(`/api/stream/${s.stream_id}/close`, {});
-}
-
 export function TractionPanel() {
   const [data, setData] = useState<TractionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,14 +32,14 @@ export function TractionPanel() {
     setBusy(true);
     setError(null);
     try {
-      for (let i = 0; i < 3; i++) await sampleRound(i * 10 + Math.floor(Math.random() * 900));
-      await load();
+      const r = await postJson<{ traction: TractionResponse }>("/api/demo/run", { rounds: 3 });
+      setData(r.traction);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
-  }, [load]);
+  }, []);
 
   useEffect(() => {
     void load();
