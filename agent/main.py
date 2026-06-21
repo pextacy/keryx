@@ -239,6 +239,41 @@ def _sample_round(seed: int) -> None:
     billed = streams.tick(stream.id, Decimal(3))
     streams.close(stream.id)
     _settle_to(f"demo-stream:{seed}", stream.payee, billed, kind="stream")
+    _sample_ported_round(seed)
+
+
+def _sample_ported_round(seed: int) -> None:
+    """Exercise the vendored-Circle primitives too, so 'generate volume' shows them in traction.
+
+    Swap (arc-stablecoin-fx), split-bill request (arc-p2p-payments), prepaid credits +
+    treasury (arc-commerce / arc-fintech), and an approved workflow (circle-ooak) — each
+    settles through the rail under its own traction kind.
+    """
+    w = _demo_wallet
+    # Stablecoin swap: settle the net EURC out to a wallet.
+    q = swap_quote("USDC", "EURC", Decimal("0.002"), settings.swap_app_fee_bps)
+    _settle_to(f"demo-swap:{seed}", w(seed + 12), q.amount_out, kind="swap")
+    # Split-bill request: a payee collects from two payers.
+    req = _requests.create(w(seed + 13), [w(seed + 14), w(seed + 15)], Decimal("0.004"))
+    for share in list(req.shares):
+        _requests.fulfil(req.id, share.payer)
+        tx = _settle_to(
+            f"demo-request:{seed}:{share.payer}", req.payee, share.amount, kind="request"
+        )
+        if tx is not None:
+            _requests.settled(share, tx)
+    # Prepaid credits: top up (settles to the treasury) then draw down.
+    topup_tx = _settle_to(f"demo-credits:{seed}", _CREDIT_TREASURY, Decimal("0.003"), kind="topup")
+    if topup_tx is not None:
+        _credits.credit(w(seed + 16), Decimal("0.003"), topup_tx)
+        _treasury.deposit(Decimal("0.003"), w(seed + 16), topup_tx)
+        _credits.spend(w(seed + 16), Decimal("0.001"), "demo-citation")
+    # Approved workflow: approve a one-action batch and execute it in order.
+    args: dict[str, object] = {"to": w(seed + 17), "amount": "0.002", "kind": "workflow"}
+    wfid = _workflows.approve([{"function": "settle", "args": args}])
+    action = _workflows.check(wfid, "settle", args)
+    wf_tx = _settle_to(f"demo-workflow:{seed}", w(seed + 17), Decimal("0.002"), kind="workflow")
+    _workflows.complete(wfid, action, wf_tx or "", ok=wf_tx is not None)
 
 
 def _embedder_status() -> dict[str, Any]:
@@ -1456,10 +1491,16 @@ def demo_reset() -> dict[str, Any]:
 
     Does NOT touch the citation ledger or any chain state — only the primitive sandboxes."""
     global traction, bonds, streams, _demo_offset
+    global _credits, _requests, _workflows, _treasury
     traction = TractionBook()
     bonds = BondBook()
     streams = StreamBook()
+    _credits = CreditBook()
+    _requests = RequestBook()
+    _workflows = WorkflowManager()
+    _treasury = Treasury(wallet=_CREDIT_TREASURY)
     _memos.clear()
+    _memo_objs.clear()
     _sends.clear()
     _demo_offset = 0
     return {"reset": True, "traction": traction.summary()}
