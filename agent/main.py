@@ -2007,7 +2007,7 @@ def get_history(limit: int = 50, kind: str = "") -> dict[str, Any]:
     optionally filtered by ``kind`` (payout/swap/request/escrow/...). Distinct from /memos
     (provenance notes): this is the raw settlement stream the dashboard streams live."""
     items = traction.recent(limit=limit, kind=kind.strip().lower())
-    return {"count": len(items), "settlements": items}
+    return {"count": len(items), "settlements": items, "by_kind": traction.recent_by_kind()}
 
 
 class DemoRequest(BaseModel):

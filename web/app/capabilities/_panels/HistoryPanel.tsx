@@ -79,6 +79,20 @@ export function HistoryPanel() {
         <p className="mt-3 text-xs text-gray-500">no settlements yet — use a panel or run the demo</p>
       )}
 
+      {data && data.by_kind && data.by_kind.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {data.by_kind.map((b) => (
+            <span
+              key={b.kind}
+              title={`${b.volume_usdc} USDC`}
+              className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"
+            >
+              {b.kind} <span className="font-semibold text-gray-800">{b.count}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {data && data.count > 0 && (
         <ul className="mt-3 divide-y divide-gray-100 text-sm">
           {data.settlements.map((s) => (

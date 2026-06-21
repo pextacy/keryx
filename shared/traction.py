@@ -60,6 +60,21 @@ class TractionBook:
             Settlement(seq=self._seq, kind=kind, amount=amount, wallet=wallet, tx_hash=tx_hash)
         )
 
+    def recent_by_kind(self) -> list[dict[str, object]]:
+        """Per-kind {count, volume} over the recent-history window (most active first).
+
+        Distinct from ``summary()`` (all-time aggregates): this rolls up only the rolling
+        window the /history feed shows, so the breakdown matches the visible activity."""
+        rollup: dict[str, KindStat] = {}
+        for s in self._history:
+            stat = rollup.setdefault(s.kind, KindStat())
+            stat.count += 1
+            stat.volume += s.amount
+        ordered = sorted(rollup.items(), key=lambda kv: kv[1].count, reverse=True)
+        return [
+            {"kind": k, "count": v.count, "volume_usdc": str(v.volume)} for k, v in ordered
+        ]
+
     def recent(self, limit: int = 50, kind: str = "") -> list[dict[str, object]]:
         """Recent settlements (most recent first), optionally filtered by ``kind``."""
         items = reversed(self._history)

@@ -360,6 +360,7 @@ export interface Settlement {
 export interface HistoryResponse {
   count: number;
   settlements: Settlement[];
+  by_kind?: { kind: string; count: number; volume_usdc: string }[];
 }
 
 // Agent-tool manifest (GET /agent/tools) — primitives as tool-use schemas.
