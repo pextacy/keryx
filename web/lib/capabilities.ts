@@ -129,6 +129,25 @@ export interface WorkflowResponse {
   actions?: WorkflowAction[];
 }
 
+// Gateway unified balance (arc-multichain-wallet) — cross-chain deposits.
+export interface GatewayDeposit {
+  chain: string;
+  amount: string;
+  tx_hash: string | null;
+}
+
+export interface GatewayResponse {
+  found?: boolean;
+  wallet: string;
+  balance: string;
+  by_chain?: Record<string, string>;
+  deposits?: GatewayDeposit[];
+  deposited?: boolean;
+  chain?: string;
+  tx_hash?: string;
+  error?: string;
+}
+
 // Treasury (arc-fintech) — accumulated inflows + sweep flows.
 export interface TreasuryFlow {
   kind: string;
