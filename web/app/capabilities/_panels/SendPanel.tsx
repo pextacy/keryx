@@ -94,7 +94,7 @@ export function SendPanel() {
             onChange={(e) => setKind(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
           >
-            {["citation", "invoice", "attestation", "job", "note", "other"].map((k) => (
+            {["citation", "invoice", "attestation", "authorization", "job", "note", "other"].map((k) => (
               <option key={k}>{k}</option>
             ))}
           </select>

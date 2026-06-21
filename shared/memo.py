@@ -32,6 +32,7 @@ MEMO_KINDS = (
     "citation",
     "invoice",
     "attestation",
+    "authorization",  # recibo ERC-3009 transferWithAuthorization — paid by off-chain signature
     "job",
     "payout",
     "royalty",

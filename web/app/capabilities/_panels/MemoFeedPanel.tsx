@@ -20,6 +20,7 @@ const KINDS = [
   "job",
   "invoice",
   "attestation",
+  "authorization",
   "note",
 ] as const;
 
@@ -32,6 +33,7 @@ const KIND_COLOR: Record<string, string> = {
   job: "bg-indigo-100 text-indigo-700",
   invoice: "bg-teal-100 text-teal-700",
   attestation: "bg-cyan-100 text-cyan-700",
+  authorization: "bg-orange-100 text-orange-700",
 };
 
 function kindColor(kind?: string): string {
