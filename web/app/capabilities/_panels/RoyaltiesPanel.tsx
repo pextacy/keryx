@@ -49,7 +49,7 @@ export function RoyaltiesPanel() {
         <input
           value={budget}
           onChange={(e) => setBudget(e.target.value)}
-          className="w-32 rounded border border-gray-300 px-2 py-1 font-mono"
+          className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
         />
       </Field>
 
@@ -59,13 +59,13 @@ export function RoyaltiesPanel() {
             <input
               value={p.wallet}
               onChange={(e) => setPlay(i, { wallet: e.target.value })}
-              className="flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               placeholder="0x creator"
             />
             <input
               value={p.count}
               onChange={(e) => setPlay(i, { count: e.target.value })}
-              className="w-20 rounded border border-gray-300 px-2 py-1 font-mono"
+              className="w-20 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               placeholder="plays"
             />
           </div>
@@ -73,7 +73,7 @@ export function RoyaltiesPanel() {
         <button
           type="button"
           onClick={() => setPlays((prev) => [...prev, { wallet: "", count: "1" }])}
-          className="text-sm text-blue-600"
+          className="text-sm text-primary-fixed-dim"
         >
           + creator
         </button>
@@ -83,7 +83,7 @@ export function RoyaltiesPanel() {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="mt-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+        className="mt-4 rounded bg-primary-fixed-dim px-4 py-2 text-on-primary-fixed font-bold disabled:opacity-50"
       >
         {busy ? "Settling…" : "Distribute by plays"}
       </button>
@@ -95,10 +95,10 @@ export function RoyaltiesPanel() {
           {res.recipients.map((r) => (
             <li key={r.wallet} className="flex items-center justify-between font-mono">
               <span className="truncate">{r.wallet.slice(0, 12)}… · {r.plays} plays</span>
-              <span className="text-green-700">{r.amount}</span>
+              <span className="text-secondary-fixed-dim">{r.amount}</span>
             </li>
           ))}
-          <li className="mt-1 border-t pt-1 text-xs text-gray-500">
+          <li className="mt-1 border-t pt-1 text-xs text-on-surface-variant">
             gated out (sub-threshold): {res.gated_out} · total {res.total_settled} USDC
           </li>
         </ul>

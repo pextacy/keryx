@@ -23,12 +23,18 @@ import {
   parseEther,
   parseUnits,
 } from "viem";
-import { arcTestnet } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+// Chain constants resolved from KERYX_NETWORK (default testnet). See network.ts.
+import {
+  USDC as ARC_USDC,
+  RPC_URL as ARC_RPC,
+  GATEWAY_CLIENT_CHAIN,
+  KERYX_NETWORK,
+  viemChain,
+  txUrl,
+} from "./network.ts";
 
-// Verified constants — see docs/VERIFIED-SIGNATURES.md.
-const ARC_TESTNET_USDC = "0x3600000000000000000000000000000000000000" as const;
-const ARC_TESTNET_RPC = "https://rpc.testnet.arc.network";
+const chain = viemChain();
 
 const SELLER_URL = process.env.SELLER_URL ?? "http://localhost:3402/cite";
 const DEPOSIT_AMOUNT = process.env.DEPOSIT_AMOUNT ?? "0.05"; // small float for M0
@@ -41,21 +47,22 @@ if (!funderKey) {
 }
 
 const funder = privateKeyToAccount(funderKey);
-const publicClient = createPublicClient({ chain: arcTestnet, transport: http(ARC_TESTNET_RPC) });
+const publicClient = createPublicClient({ chain, transport: http(ARC_RPC) });
 const funderWallet = createWalletClient({
   account: funder,
-  chain: arcTestnet,
-  transport: http(ARC_TESTNET_RPC),
+  chain,
+  transport: http(ARC_RPC),
 });
 
 const ephemeralKey = generatePrivateKey();
 const ephemeral = privateKeyToAccount(ephemeralKey);
+console.log(`[m0] network: ${KERYX_NETWORK}`);
 console.log(`[m0] ephemeral agent wallet: ${ephemeral.address}`);
 console.log(`[m0] funder (buyer):         ${funder.address}`);
 
-// Sanity: buyer must hold testnet USDC. Fail loud with the faucet link if not.
+// Sanity: buyer must hold USDC. Fail loud with the faucet link if not.
 const funderUsdc = (await publicClient.readContract({
-  address: ARC_TESTNET_USDC,
+  address: ARC_USDC,
   abi: erc20Abi,
   functionName: "balanceOf",
   args: [funder.address],
@@ -63,7 +70,9 @@ const funderUsdc = (await publicClient.readContract({
 console.log(`[m0] buyer USDC balance: ${Number(funderUsdc) / 1e6} USDC`);
 if (funderUsdc === 0n) {
   console.error(
-    `[m0] Buyer has 0 USDC. Fund ${funder.address} at https://faucet.circle.com/ (Arc Testnet) and retry.`,
+    KERYX_NETWORK === "testnet"
+      ? `[m0] Buyer has 0 USDC. Fund ${funder.address} at https://faucet.circle.com/ (Arc Testnet) and retry.`
+      : `[m0] Buyer has 0 USDC on network=${KERYX_NETWORK}. Fund ${funder.address} with USDC and retry.`,
   );
   process.exit(1);
 }
@@ -80,7 +89,7 @@ console.log(`[m0]   gas funded (${gasTx.slice(0, 10)}...)`);
 const usdcAmount = parseUnits(DEPOSIT_AMOUNT, 6);
 console.log(`[m0] transferring ${DEPOSIT_AMOUNT} USDC to ephemeral wallet...`);
 const usdcTx = await funderWallet.writeContract({
-  address: ARC_TESTNET_USDC,
+  address: ARC_USDC,
   abi: erc20Abi,
   functionName: "transfer",
   args: [ephemeral.address, usdcAmount],
@@ -89,7 +98,7 @@ await publicClient.waitForTransactionReceipt({ hash: usdcTx });
 console.log(`[m0]   USDC transferred (${usdcTx.slice(0, 10)}...)`);
 
 // 3) Deposit into the Gateway wallet.
-const gateway = new GatewayClient({ chain: "arcTestnet", privateKey: ephemeralKey });
+const gateway = new GatewayClient({ chain: GATEWAY_CLIENT_CHAIN, privateKey: ephemeralKey });
 console.log(`[m0] depositing ${DEPOSIT_AMOUNT} USDC into Gateway...`);
 const deposit = await gateway.deposit(DEPOSIT_AMOUNT);
 console.log(`[m0]   deposit tx: ${deposit.depositTxHash}`);
@@ -103,6 +112,6 @@ const result = await gateway.pay(SELLER_URL, { method: "POST", body: { source_id
 // 5) Report.
 console.log(`\n[m0] ✅ CITATION SETTLED: ${result.formattedAmount} USDC`);
 console.log(`[m0] settlement tx: ${result.transaction}`);
-console.log(`[m0] explorer: https://explorer.testnet.arc.network/tx/${result.transaction}`);
+console.log(`[m0] explorer: ${txUrl(result.transaction)}`);
 console.log(`[m0] M0 gate is GREEN if the tx resolves on the Arc explorer.`);
 process.exit(0);

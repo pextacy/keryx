@@ -7,7 +7,11 @@ import type { StatusResponse } from "@/lib/capabilities";
 function Badge({ label, on }: { label: string; on: boolean }) {
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-xs ${on ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-500"}`}
+      className={`rounded-full border px-2 py-0.5 font-label-caps text-[10px] ${
+        on
+          ? "border-secondary-fixed-dim/30 bg-secondary-fixed-dim/10 text-secondary-fixed-dim"
+          : "border-white/10 bg-white/5 text-on-surface-variant"
+      }`}
     >
       {label}
     </span>
@@ -26,18 +30,22 @@ export function StatusHeader() {
 
   if (down) {
     return (
-      <p className="mt-4 rounded bg-amber-50 p-2 text-sm text-amber-800">
-        Agent unreachable — start it with <code>make agent</code> (or set <code>AGENT_URL</code>).
-      </p>
+      <div className="mt-4 flex items-center gap-3 rounded-lg border border-white/10 bg-surface-container-low p-3 text-sm text-on-surface-variant">
+        <span className="material-symbols-outlined text-outline">cloud_off</span>
+        <span>
+          Agent offline — start it with <code className="text-primary-fixed-dim">make agent</code> (or set{" "}
+          <code className="text-primary-fixed-dim">AGENT_URL</code>) to drive these primitives live.
+        </span>
+      </div>
     );
   }
   if (!s) return null;
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 p-3 text-sm">
-      <span className="font-mono text-green-700">{s.traction.total_volume_usdc} USDC</span>
-      <span className="text-gray-500">settled · {s.traction.total_payments} payments</span>
-      <span className="mx-1 text-gray-300">|</span>
+    <div className="glass-card mt-4 flex flex-wrap items-center gap-2 p-3 text-sm">
+      <span className="font-mono-data text-secondary-fixed-dim">{s.traction.total_volume_usdc} USDC</span>
+      <span className="text-on-surface-variant">settled · {s.traction.total_payments} payments</span>
+      <span className="mx-1 text-outline-variant">|</span>
       <Badge label={`rail: ${s.rail}`} on={s.rail !== "MockRail"} />
       <Badge label={s.embedder === "VoyageEmbedder" ? "dense embeddings" : "lexical"} on={s.embedder === "VoyageEmbedder"} />
       <Badge label="Claude judge" on={s.llm_enabled} />
@@ -47,8 +55,8 @@ export function StatusHeader() {
       <Badge label="chain ledger" on={s.capabilities.chain_verified_ledger} />
       {s.books && (
         <>
-          <span className="mx-1 text-gray-300">|</span>
-          <span className="text-xs text-gray-500">
+          <span className="mx-1 text-outline-variant">|</span>
+          <span className="font-mono-data text-xs text-on-surface-variant">
             {s.books.credits.outstanding_usdc} credits · {s.books.requests.open} open req ·{" "}
             {s.books.treasury.balance_usdc} treasury · {s.books.gateway.unified_usdc} gateway ·{" "}
             {s.books.escrow.locked_usdc} escrow · {s.books.orders.total} orders ·{" "}

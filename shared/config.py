@@ -10,8 +10,10 @@ from __future__ import annotations
 from decimal import Decimal
 from functools import lru_cache
 
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from shared.network import resolve_chain_values
 
 
 class Settings(BaseSettings):
@@ -27,18 +29,32 @@ class Settings(BaseSettings):
         default=0.5, ge=0.0, le=1.0, description="T — pay only if g >= T"
     )
 
-    # --- Chain / rail (Arc testnet constants verified vs arc-nanopayments + live RPC) ---
+    # --- Network selection (testnet|mainnet) — resolves every chain constant below
+    # from shared.network.NETWORKS. Default testnet (hackathon is testnet-only).
+    # Any single constant can still be overridden via its KERYX_* env var, and the
+    # TS rail reads the same env vars (rail/m0_spike/network.ts) so both sides agree. ---
+    network: str = Field(
+        default="testnet", description="Chain network preset: 'testnet' or 'mainnet'"
+    )
+
+    # --- Chain / rail (resolved from `network`; defaults shown are the testnet preset) ---
     rpc_url: str = Field(
         default="https://rpc.testnet.arc.network", description="$RPC from arc-canteen"
     )
-    arc_chain_id: int = Field(default=0x4CEF52, description="Arc testnet chain id (5042002)")
+    arc_chain_id: int = Field(default=0x4CEF52, description="Arc chain id (testnet 5042002)")
     usdc_address: str = Field(
         default="0x3600000000000000000000000000000000000000",
-        description="USDC token contract on Arc testnet (6 decimals)",
+        description="USDC token contract on the selected network (6 decimals)",
     )
     gateway_wallet: str = Field(
         default="0x0077777d7EBA4688BDeF3E311b846F25870A19B9",
         description="Circle Gateway batching contract (x402 verifyingContract)",
+    )
+    caip2_network: str = Field(
+        default="eip155:5042002", description="CAIP-2 network id used in x402 requirements"
+    )
+    explorer_url: str = Field(
+        default="https://testnet.arcscan.app", description="Block explorer base URL"
     )
 
     # --- Rail selection (mock now; http bridges to the TS payer at M2, no code edit) ---
@@ -105,20 +121,25 @@ class Settings(BaseSettings):
     rsshub_timeout: float = Field(default=20.0, gt=0)
     rsshub_max_retries: int = Field(default=2, ge=0)
 
-    # --- LLM (grounding judge + answer synthesis) ---
-    # Real Claude path activates when anthropic_api_key is set; offline heuristics otherwise.
-    anthropic_api_key: str = Field(default="")
-    judge_model: str = Field(default="claude-opus-4-8")
-    answer_model: str = Field(
-        default="", description="Model for answer synthesis; falls back to judge_model"
+    # --- LLM (grounding judge + answer synthesis) — Gemini ---
+    # The real Gemini judge + answerer activate when gemini_api_key is set; otherwise the
+    # deterministic offline heuristics keep CI and zero-config demos dependency-free.
+    gemini_api_key: str = Field(default="", description="Google Gemini (AI Studio) API key")
+    gemini_judge_model: str = Field(default="gemini-2.5-flash")
+    gemini_answer_model: str = Field(
+        default="", description="Gemini answer-synthesis model; falls back to gemini_judge_model"
     )
-    judge_effort: str = Field(default="low", description="effort for the grounding judge")
-    answer_effort: str = Field(default="medium", description="effort for answer synthesis")
     llm_max_tokens: int = Field(default=4096, ge=256)
+    # Resilience: retry transient Gemini errors (429 rate-limit / 5xx) with bounded
+    # exponential backoff before degrading to the offline heuristic. Matters on the free
+    # tier, where /ask fans out to ~6 calls and bursts hit the per-minute quota.
+    llm_max_retries: int = Field(default=3, ge=0, description="LLM transient-error retries")
+    llm_backoff_base: float = Field(default=0.5, ge=0, description="base backoff seconds, doubled")
+    llm_backoff_cap: float = Field(default=8.0, ge=0, description="max backoff seconds per sleep")
 
     @property
-    def answer_model_resolved(self) -> str:
-        return self.answer_model or self.judge_model
+    def gemini_answer_model_resolved(self) -> str:
+        return self.gemini_answer_model or self.gemini_judge_model
 
     # --- Embeddings (grounding similarity signal) ---
     # Dense path activates when voyage_api_key is set; offline BagOfWords TF-cosine otherwise.
@@ -147,6 +168,30 @@ class Settings(BaseSettings):
     agent_private_key: str = Field(
         default="", description="0x hex secp256k1 key the agent signs attestations with"
     )
+
+    # --- API auth (opt-in; empty = open, for the zero-config local demo) ---
+    # When set, every state-mutating request must carry `Authorization: Bearer <token>`.
+    # Reads stay open. Backward compatible: unset means no auth, so the demo just works.
+    api_token: str = Field(
+        default="", description="Bearer token required on mutating endpoints; empty = no auth"
+    )
+    # Reject request bodies larger than this many bytes (defence against unbounded payloads).
+    max_body_bytes: int = Field(default=1_000_000, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_network(cls, values: object) -> object:
+        """Fill every chain constant from the selected network preset, unless the
+        constant was explicitly provided (env/init). Raises for a network whose
+        preset is incomplete (e.g. mainnet) and the value was not supplied — so a
+        misconfigured mainnet fails loud instead of reusing a testnet address."""
+        if not isinstance(values, dict):
+            return values
+        network = str(values.get("network") or "testnet").lower()
+        resolved = resolve_chain_values(network, values)
+        values.update(resolved)
+        values["network"] = network
+        return values
 
     @field_validator("citation_toll_max")
     @classmethod

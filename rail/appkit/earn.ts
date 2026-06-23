@@ -4,10 +4,12 @@
  * Keryx use: park unsettled citation/job budget in a vault to earn yield, then withdraw to
  * settle. Reuses the Arc adapter + kit from appkit.ts.
  */
-import { AppKit, EarnChain } from "@circle-fin/app-kit";
+import { AppKit } from "@circle-fin/app-kit";
 import { type ArcAdapter } from "./appkit.ts";
+import { APPKIT_EARN_CHAIN } from "./network.ts";
 
-export const ARC_EARN = EarnChain.Arc_Testnet;
+// Earn vault chain, resolved from KERYX_NETWORK (default testnet). See network.ts.
+export const ARC_EARN = APPKIT_EARN_CHAIN;
 
 /** Read info for specific Arc vaults (chain + vaultAddress pairs). */
 export function getVaultsInfo(kit: AppKit, vaultAddresses: string[]) {

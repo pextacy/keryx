@@ -17,9 +17,13 @@
 import { AppKit, BridgeChain } from "@circle-fin/app-kit";
 import { createViemAdapterFromPrivateKey } from "@circle-fin/adapter-viem-v2";
 import { createPublicClient, createWalletClient, http } from "viem";
+import { APPKIT_CHAIN } from "./network.ts";
 
-// Arc Testnet is the only chain Keryx settles on (id 5042002 / 0x4cef52).
-export const ARC_CHAIN = "Arc_Testnet" as const;
+// The Arc chain App Kit settles on, resolved from KERYX_NETWORK (default testnet,
+// id 5042002 / 0x4cef52). App Kit validates the id at runtime; we keep the prior
+// literal type for the type-checker so all call sites typecheck unchanged. A
+// non-testnet network supplies its id via KERYX_APPKIT_CHAIN (see network.ts).
+export const ARC_CHAIN = APPKIT_CHAIN as "Arc_Testnet";
 
 /** Build a viem adapter bound to Keryx's Arc RPC (falls back to the chain default RPC). */
 export function arcAdapter(privateKey: string, rpcUrl?: string) {

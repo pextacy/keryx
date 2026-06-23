@@ -1,3 +1,171 @@
+/* Fonts are loaded via <link> tags in app/layout.tsx <head> — more reliable than
+   CSS @import, which PostCSS can drop during minification. */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-on-background font-body-md;
+    /* Layered ambient depth — cool cyan wash up top, faint emerald in the far corner */
+    background-color: #131313;
+    background-image:
+      radial-gradient(1000px circle at 50% -12%, rgba(0, 219, 233, 0.07), transparent 60%),
+      radial-gradient(760px circle at 108% 108%, rgba(0, 226, 151, 0.045), transparent 55%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    /* Numbers line up like a ledger should */
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: #00dbe9;
+    color: #002022;
+  }
+  /* Accessibility floor — visible keyboard focus everywhere */
+  :focus-visible {
+    outline: 2px solid #00dbe9;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* Glassmorphism surface — the core card treatment.
+     A faint top-down sheen + a 1px top light-leak gives depth; the grounding
+     drop-shadow makes every card feel seated rather than floating. */
+  .glass-card {
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0) 42%),
+      rgba(18, 18, 18, 0.66);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.5rem;
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+      0 12px 32px -16px rgba(0, 0, 0, 0.7);
+  }
+  .neon-glow-primary {
+    box-shadow: 0 0 15px rgba(0, 219, 233, 0.15);
+    border-color: rgba(0, 219, 233, 0.4);
+  }
+  .neon-glow-success {
+    box-shadow: 0 0 15px rgba(0, 226, 151, 0.15);
+    border-color: rgba(0, 226, 151, 0.4);
+  }
+  .cyber-grid {
+    background-image: radial-gradient(circle, rgba(0, 219, 233, 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .neon-border-bottom {
+    position: relative;
+  }
+  .neon-border-bottom::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #00dbe9, transparent);
+    filter: blur(1px);
+  }
+}
+
+@layer utilities {
+  .material-symbols-outlined {
+    font-family: "Material Symbols Outlined";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    vertical-align: middle;
+    font-feature-settings: "liga";
+    -webkit-font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+  }
+  .icon-fill {
+    font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #353534;
+    border-radius: 9999px;
+  }
+}
+
+@keyframes scan {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+.scanning-line {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #00e297, transparent);
+  position: absolute;
+  width: 100%;
+  animation: scan 3s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse-cyan {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 219, 233, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 219, 233, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 219, 233, 0);
+  }
+}
+.animate-pulse-cyan {
+  animation: pulse-cyan 2s infinite;
+}
+
+/* Respect reduced-motion preferences — calm the ambient effects */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .scanning-line {
+    display: none;
+  }
+}

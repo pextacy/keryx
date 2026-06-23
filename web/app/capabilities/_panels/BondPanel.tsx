@@ -42,7 +42,7 @@ export function BondPanel() {
         <input
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
-          className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+          className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
         />
       </Field>
       <div className="mt-2">
@@ -50,7 +50,7 @@ export function BondPanel() {
           <input
             value={claimant}
             onChange={(e) => setClaimant(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
           />
         </Field>
       </div>
@@ -59,7 +59,7 @@ export function BondPanel() {
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-32 rounded border border-gray-300 px-2 py-1 font-mono"
+            className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
           />
         </Field>
       </div>
@@ -69,7 +69,7 @@ export function BondPanel() {
           type="button"
           onClick={post}
           disabled={busy}
-          className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          className="rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
         >
           Post bond
         </button>
@@ -77,7 +77,7 @@ export function BondPanel() {
           type="button"
           onClick={() => resolve(true)}
           disabled={busy || !bond}
-          className="rounded border border-green-600 px-3 py-1.5 text-sm text-green-700 disabled:opacity-40"
+          className="rounded border border-secondary-fixed-dim px-3 py-1.5 text-sm text-secondary-fixed-dim disabled:opacity-40"
         >
           Resolve: delivered
         </button>
@@ -85,7 +85,7 @@ export function BondPanel() {
           type="button"
           onClick={() => resolve(false)}
           disabled={busy || !bond}
-          className="rounded border border-red-600 px-3 py-1.5 text-sm text-red-700 disabled:opacity-40"
+          className="rounded border border-error px-3 py-1.5 text-sm text-error disabled:opacity-40"
         >
           Resolve: slash
         </button>
@@ -96,28 +96,28 @@ export function BondPanel() {
       {bond && (
         <dl className="mt-4 space-y-1 font-mono text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">bond</span>
+            <span className="text-on-surface-variant">bond</span>
             <span>{bond.bond_id}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">status</span>
-            <span className={bond.status === "slashed" ? "text-red-700" : "text-green-700"}>
+            <span className="text-on-surface-variant">status</span>
+            <span className={bond.status === "slashed" ? "text-error" : "text-secondary-fixed-dim"}>
               {bond.status}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">reputation Δ</span>
+            <span className="text-on-surface-variant">reputation Δ</span>
             <span>{bond.reputation_delta}</span>
           </div>
           {bond.tx_hash && (
             <div className="flex justify-between">
-              <span className="text-gray-500">slash tx</span>
+              <span className="text-on-surface-variant">slash tx</span>
               <TxLink hash={bond.tx_hash} prefix="" />
             </div>
           )}
           {bond.escrow?.tx_hash && (
             <div className="flex justify-between">
-              <span className="text-gray-500">escrow anchor</span>
+              <span className="text-on-surface-variant">escrow anchor</span>
               <TxLink hash={bond.escrow.tx_hash} prefix="" />
             </div>
           )}

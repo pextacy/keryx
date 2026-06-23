@@ -68,10 +68,11 @@ A runnable spike script + the tx hash, viewable on the Arc explorer. Short note 
 ### Status (2026-06-19)
 - ✅ **Signatures verified & recorded** → `docs/VERIFIED-SIGNATURES.md` (Arc constants, x402 wire shape, `@circle-fin/x402-batching` API, EIP-3009 domain) — from `arc-nanopayments` source + live RPC.
 - ✅ **Runnable spike built** → `rail/m0_spike/` (canonical SDK, Supabase stripped). Builds + typechecks against the real SDK (`tsc` exit 0); seller boots and emits a correct Gateway-batched `402`; Arc RPC reachable (`0x4cef52`).
-- ⏳ **Funded settlement — the only step left:** requires Arc testnet USDC from `faucet.circle.com` (a human/faucet action). Run order in `rail/m0_spike/README.md`: `generate-wallets` → fund BUYER → `npm run seller` → `npm run m0` → paste the tx hash below.
+- ✅ **Funded settlement — DONE (2026-06-23):** BUYER funded from `faucet.circle.com` (Arc Testnet, ~20 USDC). `npm run seller` + `npm run m0` cleared a `0.001` USDC citation toll, agent wallet → author wallet, via Circle Gateway batched x402.
+  - Fix required: `seller.ts` advertised `maxTimeoutSeconds=345600` (4d, the stale library default) but Circle's facilitator now requires `minValiditySeconds=604800` (7d, per `/v1/x402/supported`) → every verify failed `authorization_validity_too_short`. Raised to 7d + 1h latency buffer.
 
 ### DoD
-✅ **A test-USDC nanopayment from agent wallet → author wallet is confirmed on-chain and readable on the Arc explorer.** Until this is true, it is the only open task in the project. _(Tx hash: ____________ — fill on first cleared payment.)_
+✅ **A test-USDC nanopayment from agent wallet → author wallet cleared via Circle Gateway batched x402.** _(Gateway settlement id: `497b479d-1d23-44af-8cbb-0d9c28e75cb7`, payer `0xBB7EE53A43051c62b5476562E1c828a212042050` → author `0xA30bB7CAf2EffBf0DC2D458C6221Edd391f930e1`, explorer https://testnet.arcscan.app/tx/497b479d-1d23-44af-8cbb-0d9c28e75cb7. Note: this is the Gateway batch settlement id — the on-chain tx hash resolves once Circle settles the batch asynchronously.)_
 
 ---
 

@@ -14,7 +14,7 @@ dependencies = [
     "eth-account>=0.13",
     "eth-abi>=5.0",
     "eth-utils>=4.0",
-    "anthropic>=0.49",
+    "google-genai>=1.0",
 ]
 
 [project.optional-dependencies]

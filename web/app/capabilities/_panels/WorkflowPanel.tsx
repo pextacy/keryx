@@ -103,26 +103,26 @@ export function WorkflowPanel() {
           return (
             <div
               key={i}
-              className={`flex items-center gap-2 rounded p-1 ${isNext ? "bg-amber-50" : ""}`}
+              className={`flex items-center gap-2 rounded p-1 ${isNext ? "bg-error-container/10" : ""}`}
             >
-              <span className="w-4 text-xs text-gray-400">{i + 1}</span>
+              <span className="w-4 text-xs text-outline">{i + 1}</span>
               <input
                 value={r.to}
                 onChange={(e) => update(i, { to: e.target.value })}
                 disabled={locked}
-                className="flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-xs disabled:bg-gray-50"
+                className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs disabled:bg-white/5"
               />
               <input
                 value={r.amount}
                 onChange={(e) => update(i, { amount: e.target.value })}
                 disabled={locked}
-                className="w-20 rounded border border-gray-300 px-2 py-1 font-mono text-xs disabled:bg-gray-50"
+                className="w-20 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs disabled:bg-white/5"
               />
               {!locked && rows.length > 1 && (
                 <button
                   type="button"
                   onClick={() => removeRow(i)}
-                  className="text-xs text-gray-400 hover:text-red-600"
+                  className="text-xs text-outline hover:text-error"
                 >
                   ✕
                 </button>
@@ -141,7 +141,7 @@ export function WorkflowPanel() {
             type="button"
             onClick={() => void approve()}
             disabled={busy}
-            className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+            className="rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
           >
             {busy ? "…" : `Approve ${rows.length}`}
           </button>
@@ -154,26 +154,26 @@ export function WorkflowPanel() {
             <div className="flex items-center gap-3 text-sm">
               <span
                 className={`rounded px-2 py-0.5 text-xs font-medium ${
-                  done ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                  done ? "bg-secondary-fixed-dim/10 text-secondary-fixed-dim" : "bg-error-container/20 text-error"
                 }`}
               >
                 {wf.status}
               </span>
-              <span className="text-gray-500">{wf.remaining} remaining</span>
+              <span className="text-on-surface-variant">{wf.remaining} remaining</span>
             </div>
           </Field>
 
           <ol className="mt-2 space-y-1 text-xs">
             {wf.actions?.map((a, i) => (
               <li key={i} className="flex items-center gap-2 font-mono">
-                <span className={a.status === "completed" ? "text-green-600" : "text-gray-400"}>
+                <span className={a.status === "completed" ? "text-secondary-fixed-dim" : "text-outline"}>
                   {a.status === "completed" ? "✓" : "○"}
                 </span>
-                <span className="text-gray-500">#{i + 1}</span>
+                <span className="text-on-surface-variant">#{i + 1}</span>
                 {a.result ? (
                   <TxLink hash={a.result} prefix="tx" />
                 ) : (
-                  <span className="text-gray-400">{a.status}</span>
+                  <span className="text-outline">{a.status}</span>
                 )}
               </li>
             ))}
@@ -184,7 +184,7 @@ export function WorkflowPanel() {
               type="button"
               onClick={() => void executeNext()}
               disabled={busy || done}
-              className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
             >
               {done ? "Done" : busy ? "…" : "Execute next"}
             </button>

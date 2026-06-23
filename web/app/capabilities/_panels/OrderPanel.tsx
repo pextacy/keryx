@@ -76,17 +76,17 @@ export function OrderPanel() {
                 <input
                   value={r.description}
                   onChange={(e) => update(i, { description: e.target.value })}
-                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                  className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 text-sm"
                 />
                 <input
                   value={r.to}
                   onChange={(e) => update(i, { to: e.target.value })}
-                  className="w-28 rounded border border-gray-300 px-2 py-1 font-mono text-[11px]"
+                  className="w-28 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-[11px]"
                 />
                 <input
                   value={r.amount}
                   onChange={(e) => update(i, { amount: e.target.value })}
-                  className="w-16 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+                  className="w-16 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
                 />
               </div>
             ))}
@@ -99,7 +99,7 @@ export function OrderPanel() {
               type="button"
               onClick={() => void create()}
               disabled={busy}
-              className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
             >
               {busy ? "…" : "Create order"}
             </button>
@@ -108,20 +108,20 @@ export function OrderPanel() {
       ) : (
         <>
           <div className="flex items-center justify-between text-sm">
-            <span className="font-mono text-gray-500">{order.id}</span>
+            <span className="font-mono text-on-surface-variant">{order.id}</span>
             <span
               className={`rounded px-2 py-0.5 text-xs font-medium ${
                 order.status === "paid"
-                  ? "bg-green-100 text-green-700"
+                  ? "bg-secondary-fixed-dim/10 text-secondary-fixed-dim"
                   : order.status === "partial"
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-gray-100 text-gray-600"
+                    ? "bg-error-container/20 text-error"
+                    : "bg-white/5 text-on-surface-variant"
               }`}
             >
               {order.status}
             </span>
           </div>
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-on-surface-variant">
             {order.paid} of {order.total} USDC settled
           </div>
 
@@ -130,11 +130,11 @@ export function OrderPanel() {
               <li key={i} className="flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{it.description}</span>
                 <span className="flex items-center gap-2 font-mono text-xs">
-                  <span className="text-green-700">{it.amount}</span>
+                  <span className="text-secondary-fixed-dim">{it.amount}</span>
                   {it.tx_hash ? (
                     <TxLink hash={it.tx_hash} prefix="tx" chars={0} />
                   ) : (
-                    <span className="text-gray-400">pending</span>
+                    <span className="text-outline">pending</span>
                   )}
                 </span>
               </li>
@@ -146,7 +146,7 @@ export function OrderPanel() {
               type="button"
               onClick={() => void checkout()}
               disabled={busy}
-              className="mt-3 rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="mt-3 rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
             >
               {busy ? "…" : "Checkout"}
             </button>

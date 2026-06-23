@@ -32,16 +32,16 @@ export function AgentToolsPanel() {
         {m?.tools.map((t) => (
           <li key={t.name} className="text-sm">
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <code className="rounded bg-gray-900 px-1.5 py-0.5 text-[11px] text-white">
+              <code className="rounded bg-surface-container-high px-1.5 py-0.5 text-[11px] text-white">
                 {t.name}
               </code>
-              <span className="font-mono text-[11px] text-gray-400">
+              <span className="font-mono text-[11px] text-outline">
                 {t.route.method} {t.route.path}
               </span>
             </div>
-            <div className="mt-0.5 text-xs text-gray-600">{t.description}</div>
+            <div className="mt-0.5 text-xs text-on-surface-variant">{t.description}</div>
             {t.input_schema.required.length > 0 && (
-              <div className="mt-0.5 font-mono text-[11px] text-gray-400">
+              <div className="mt-0.5 font-mono text-[11px] text-outline">
                 required: {t.input_schema.required.join(", ")}
               </div>
             )}

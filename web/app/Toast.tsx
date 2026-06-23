@@ -18,17 +18,17 @@ export function useToast(): { toast: React.ReactNode; notify: (message: string, 
   }, []);
 
   const toast = current ? (
-    <div className="fixed bottom-4 right-4 z-50 max-w-xs rounded-lg border border-green-200 bg-white px-4 py-3 shadow-lg">
+    <div className="glass-card neon-glow-success fixed bottom-4 right-4 z-50 max-w-xs px-4 py-3 shadow-lg">
       <div className="flex items-center gap-2">
-        <span className="text-green-600">✓</span>
-        <span className="text-sm font-medium text-gray-800">{current.message}</span>
+        <span className="text-secondary-fixed-dim">✓</span>
+        <span className="text-sm font-medium text-on-surface">{current.message}</span>
       </div>
       {current.tx && (
         <div className="mt-1 flex items-center gap-1">
           <a
             href={ARC_EXPLORER_TX + current.tx}
             target="_blank"
-            className="font-mono text-xs text-blue-600 underline"
+            className="font-mono-data text-xs text-primary-fixed-dim underline"
           >
             tx {current.tx.slice(0, 16)}…
           </a>

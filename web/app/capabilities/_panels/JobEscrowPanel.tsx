@@ -37,14 +37,14 @@ function LifecycleStepper({ status }: { status: string }) {
                 (current
                   ? statusColor(step)
                   : done
-                    ? "bg-green-50 text-green-700"
-                    : "bg-gray-50 text-gray-400")
+                    ? "bg-secondary-fixed-dim/10 text-secondary-fixed-dim"
+                    : "bg-white/5 text-outline")
               }
             >
               {step}
             </span>
             {i < JOB_LIFECYCLE.length - 1 && (
-              <span className={done ? "text-green-400" : "text-gray-300"}>→</span>
+              <span className={done ? "text-secondary-fixed-dim" : "text-outline-variant"}>→</span>
             )}
           </li>
         );
@@ -56,7 +56,7 @@ function LifecycleStepper({ status }: { status: string }) {
 function Party({ label, addr }: { label: string; addr?: string }) {
   return (
     <div className="flex justify-between gap-2">
-      <span className="text-gray-500">{label}</span>
+      <span className="text-on-surface-variant">{label}</span>
       <span className="truncate font-mono text-xs" title={addr}>
         {addr ? `${addr.slice(0, 10)}…${addr.slice(-4)}` : "—"}
       </span>
@@ -92,7 +92,7 @@ export function JobEscrowPanel() {
           <input
             value={jobId}
             onChange={(e) => setJobId(e.target.value)}
-            className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+            className="w-24 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
           />
           <button
             type="button"
@@ -106,15 +106,15 @@ export function JobEscrowPanel() {
       </Field>
 
       {job && !job.enabled && (
-        <p className="mt-3 text-xs text-amber-700">
+        <p className="mt-3 text-xs text-error">
           opt-in (disabled) — set the agent&apos;s KERYX_ERC8183_ENABLED to read on-chain jobs
         </p>
       )}
       {job && job.enabled && job.error && (
-        <p className="mt-3 text-xs text-red-700">RPC error: {job.error}</p>
+        <p className="mt-3 text-xs text-error">RPC error: {job.error}</p>
       )}
       {job && job.enabled && job.found === false && (
-        <p className="mt-3 text-xs text-gray-500">no job #{job.job_id} on-chain</p>
+        <p className="mt-3 text-xs text-on-surface-variant">no job #{job.job_id} on-chain</p>
       )}
 
       {job && job.enabled && job.found && job.status && (
@@ -122,11 +122,11 @@ export function JobEscrowPanel() {
           <LifecycleStepper status={job.status} />
           <dl className="space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">escrow</span>
-              <span className="font-medium text-green-700">{formatUsdc(job.budget_usdc)}</span>
+              <span className="text-on-surface-variant">escrow</span>
+              <span className="font-medium text-secondary-fixed-dim">{formatUsdc(job.budget_usdc)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">expires</span>
+              <span className="text-on-surface-variant">expires</span>
               <span className="font-mono text-xs">{formatExpiry(job.expired_at)}</span>
             </div>
             <Party label="client" addr={job.client} />
@@ -134,7 +134,7 @@ export function JobEscrowPanel() {
             <Party label="evaluator" addr={job.evaluator} />
           </dl>
           {job.description && (
-            <p className="rounded bg-gray-50 px-2 py-1 text-xs text-gray-600">{job.description}</p>
+            <p className="rounded bg-white/5 px-2 py-1 text-xs text-on-surface-variant">{job.description}</p>
           )}
         </div>
       )}

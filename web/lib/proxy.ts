@@ -2,15 +2,20 @@ import { NextResponse } from "next/server";
 
 // Server-side proxy to the agent — keeps AGENT_URL server-only and avoids CORS.
 const AGENT_URL = process.env.AGENT_URL ?? "http://127.0.0.1:8000";
+// Forwarded to the agent when KERYX_API_TOKEN is set there too; empty in the local demo.
+const API_TOKEN = process.env.KERYX_API_TOKEN ?? "";
 
 async function forward(path: string, init?: RequestInit): Promise<NextResponse> {
+  const headers = new Headers(init?.headers);
+  if (API_TOKEN) headers.set("Authorization", `Bearer ${API_TOKEN}`);
   try {
-    const resp = await fetch(`${AGENT_URL}${path}`, init);
+    const resp = await fetch(`${AGENT_URL}${path}`, { ...init, headers });
     const data: unknown = await resp.json();
     return NextResponse.json(data, { status: resp.status });
   } catch (err) {
+    // Don't leak the internal agent host to the browser — just the failure.
     return NextResponse.json(
-      { error: "agent unreachable", message: (err as Error).message, agent: AGENT_URL },
+      { error: "agent unreachable", message: (err as Error).message },
       { status: 502 },
     );
   }

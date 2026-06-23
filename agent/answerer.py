@@ -9,13 +9,16 @@ answer from the most query-relevant source sentences — deterministic and depen
 from __future__ import annotations
 
 import logging
+import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from agent.grounding.embeddings import similarity
+from agent.llm import call_with_retry
 from registry.models import Source
 
 if TYPE_CHECKING:
-    from anthropic import Anthropic
+    from google.genai import Client as GeminiClient
 
 log = logging.getLogger("keryx.answerer")
 
@@ -55,28 +58,35 @@ _ANSWER_SYSTEM = (
 )
 
 
-class AnthropicAnswerer:
-    """Claude-backed answer synthesis from retrieved sources (prd.md §5 step 3).
+class GeminiAnswerer:
+    """Gemini-backed answer synthesis from retrieved sources (prd.md §5 step 3).
 
-    Falls back to ``ExtractiveAnswerer`` on any API failure so the citation loop never
-    breaks. Source text is truncated per-source to keep the prompt bounded.
+    Transient errors (429/5xx) are retried with bounded backoff; any remaining API failure
+    degrades to ``ExtractiveAnswerer`` so the citation loop never breaks. Source text is
+    truncated per-source to keep the prompt bounded.
     """
 
     def __init__(
         self,
-        client: Anthropic,
+        client: GeminiClient,
         *,
         model: str,
-        effort: str = "medium",
         max_tokens: int = 4096,
         per_source_chars: int = 2000,
+        max_retries: int = 0,
+        backoff_base: float = 0.5,
+        backoff_cap: float = 8.0,
+        sleep: Callable[[float], None] = time.sleep,
         fallback: Answerer | None = None,
     ) -> None:
         self._client = client
         self.model = model
-        self.effort = effort
         self.max_tokens = max_tokens
         self.per_source_chars = per_source_chars
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
+        self.backoff_cap = backoff_cap
+        self._sleep = sleep
         self.fallback: Answerer = fallback or ExtractiveAnswerer()
 
     def answer(self, query: str, sources: list[Source]) -> str:
@@ -87,18 +97,27 @@ class AnthropicAnswerer:
         )
         client: Any = self._client  # SDK call is an untyped boundary; guarded by except
         try:
-            resp = client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                thinking={"type": "adaptive"},
-                output_config={"effort": self.effort},
-                system=_ANSWER_SYSTEM,
-                messages=[{"role": "user", "content": f"Question: {query}\n\nSources:\n{blocks}"}],
+            from google.genai import types
+
+            config = types.GenerateContentConfig(
+                system_instruction=_ANSWER_SYSTEM,
+                max_output_tokens=self.max_tokens,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
-            text = "".join(b.text for b in resp.content if b.type == "text").strip()
+            contents = f"Question: {query}\n\nSources:\n{blocks}"
+            resp = call_with_retry(
+                lambda: client.models.generate_content(
+                    model=self.model, contents=contents, config=config
+                ),
+                max_retries=self.max_retries,
+                backoff_base=self.backoff_base,
+                backoff_cap=self.backoff_cap,
+                sleep=self._sleep,
+            )
+            text = (resp.text or "").strip()
             if not text:
                 raise ValueError("empty answer from model")
             return text
         except Exception as exc:  # noqa: BLE001 — degrade to the offline answerer
-            log.warning("AnthropicAnswerer fell back to extractive: %s", exc)
+            log.warning("GeminiAnswerer fell back to extractive: %s", exc)
             return self.fallback.answer(query, sources)

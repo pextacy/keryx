@@ -71,14 +71,14 @@ export function SchedulePanel() {
               <input
                 value={payer}
                 onChange={(e) => setPayer(e.target.value)}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-[11px]"
+                className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-[11px]"
               />
             </Field>
             <Field label="Payee">
               <input
                 value={payee}
                 onChange={(e) => setPayee(e.target.value)}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-[11px]"
+                className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-[11px]"
               />
             </Field>
           </div>
@@ -87,21 +87,21 @@ export function SchedulePanel() {
               <input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+                className="w-24 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               />
             </Field>
             <Field label="Runs">
               <input
                 value={runs}
                 onChange={(e) => setRuns(e.target.value)}
-                className="w-16 rounded border border-gray-300 px-2 py-1 font-mono"
+                className="w-16 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               />
             </Field>
             <button
               type="button"
               onClick={() => void create()}
               disabled={busy}
-              className="mb-1 rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="mb-1 rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
             >
               {busy ? "…" : "Create"}
             </button>
@@ -110,20 +110,20 @@ export function SchedulePanel() {
       ) : (
         <>
           <div className="flex items-center justify-between text-sm">
-            <span className="font-mono text-gray-500">{sched.id}</span>
+            <span className="font-mono text-on-surface-variant">{sched.id}</span>
             <span
               className={`rounded px-2 py-0.5 text-xs font-medium ${
                 sched.status === "completed"
-                  ? "bg-green-100 text-green-700"
+                  ? "bg-secondary-fixed-dim/10 text-secondary-fixed-dim"
                   : sched.status === "cancelled"
-                    ? "bg-gray-200 text-gray-600"
-                    : "bg-amber-100 text-amber-700"
+                    ? "bg-surface-container-high text-on-surface-variant"
+                    : "bg-error-container/20 text-error"
               }`}
             >
               {sched.status}
             </span>
           </div>
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-on-surface-variant">
             {sched.runs_done}/{sched.total_runs} runs · paid {sched.paid} · {sched.remaining} left
           </div>
 
@@ -132,7 +132,7 @@ export function SchedulePanel() {
               <span
                 key={i}
                 className={`h-2 flex-1 rounded ${
-                  i < (sched.runs_done ?? 0) ? "bg-green-500" : "bg-gray-200"
+                  i < (sched.runs_done ?? 0) ? "bg-secondary-fixed-dim" : "bg-surface-container-high"
                 }`}
               />
             ))}
@@ -141,7 +141,7 @@ export function SchedulePanel() {
           {sched.tx_hashes && sched.tx_hashes.length > 0 && (
             <ul className="mt-2 space-y-0.5 text-xs">
               {sched.tx_hashes.map((tx, i) => (
-                <li key={i} className="flex items-center gap-1 font-mono text-gray-500">
+                <li key={i} className="flex items-center gap-1 font-mono text-on-surface-variant">
                   run {i + 1}: <TxLink hash={tx} prefix="tx" />
                 </li>
               ))}
@@ -154,7 +154,7 @@ export function SchedulePanel() {
                 type="button"
                 onClick={() => void act("run", "Installment paid")}
                 disabled={busy}
-                className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                className="rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
               >
                 {busy ? "…" : "Run next"}
               </button>

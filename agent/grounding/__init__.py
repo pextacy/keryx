@@ -15,12 +15,12 @@ from agent.grounding.embeddings import (
     cosine,
     similarity,
 )
-from agent.grounding.judge import AnthropicJudge, HeuristicJudge, Judge, JudgeResult, Verdict
+from agent.grounding.judge import GeminiJudge, HeuristicJudge, Judge, JudgeResult, Verdict
 from agent.grounding.scorer import GroundingResult, GroundingScorer
 
 __all__ = [
-    "AnthropicJudge",
     "BagOfWordsEmbedder",
+    "GeminiJudge",
     "Embedder",
     "GroundingResult",
     "GroundingScorer",

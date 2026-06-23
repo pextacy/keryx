@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -21,6 +22,7 @@ from typing import Any, Literal
 
 from eth_account import Account
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from agent.attestation import AttestationSigner, verify_attestation
@@ -105,6 +107,28 @@ app = FastAPI(
 log = logging.getLogger("keryx.agent")
 
 
+_MUTATING = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+@app.middleware("http")
+async def _guard(request: Request, call_next: Any) -> Any:
+    """Enforce the body-size cap and (when configured) bearer auth on mutating requests.
+
+    Reads stay open and, when ``KERYX_API_TOKEN`` is unset, so does everything — the
+    zero-config local demo is unchanged. Runs before logging so rejects are logged too.
+    """
+    if request.method in _MUTATING:
+        cl = request.headers.get("content-length")
+        if cl is not None and cl.isdigit() and int(cl) > settings.max_body_bytes:
+            return JSONResponse({"error": "request body too large"}, status_code=413)
+        if settings.api_token:
+            auth = request.headers.get("authorization", "")
+            token = auth[7:] if auth.lower().startswith("bearer ") else ""
+            if token != settings.api_token:
+                return JSONResponse({"error": "unauthorized"}, status_code=401)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def _request_log(request: Request, call_next: Any) -> Any:
     """Tag each request with an id and log method/path/status/latency (observability)."""
@@ -122,6 +146,13 @@ async def _request_log(request: Request, call_next: Any) -> Any:
         request_id,
     )
     return response
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
+    """Convert any unforeseen error into a clean JSON 500 instead of a raw stack trace."""
+    log.exception("unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse({"error": "internal error"}, status_code=500)
 
 
 # Rail comes from config: MockRail by default, HttpRail when KERYX_RAIL=http (Phase 3 / M2).
@@ -200,6 +231,12 @@ _orders = OrderBook()
 # Recurring payment schedules (arc-fintech scheduled payouts): a fixed amount per run for N
 # runs — the discrete counterpart to streaming.
 _schedules = ScheduleBook()
+
+
+# Serialises the check->settle->mark critical sections of the two-step settle flows
+# (fulfil/refund/release/run/spend/sweep). Coarse but correct: it closes the TOCTOU
+# window where two concurrent identical requests would each settle before either marks.
+_book_lock = threading.Lock()
 
 
 def _settle_to(source_id: str, wallet: str, amount: Decimal, *, kind: str) -> str | None:
@@ -342,7 +379,7 @@ def _embedder_status() -> dict[str, Any]:
 
 
 class AskRequest(BaseModel):
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=2000)
     budget: Decimal | None = Field(default=None, description="USDC budget for this query")
     per_source_cap: Decimal | None = None
     external: bool = Field(default=False, description="True if from a non-team agent")
@@ -398,12 +435,12 @@ def config() -> dict[str, Any]:
         "rail": type(rail).__name__,
         "agent_pubkey": signer.address,
         "sources_indexed": len(registry.all()),
-        # Which grounding/answer path is live — Claude when a key is set, else heuristic.
+        # Which grounding/answer path is live — Gemini when a key is set, else heuristic.
         "llm_enabled": enabled,
         "judge": type(pipeline.scorer.judge).__name__,
         "answerer": type(pipeline.answerer).__name__,
-        "judge_model": settings.judge_model if enabled else None,
-        "answer_model": settings.answer_model_resolved if enabled else None,
+        "judge_model": settings.gemini_judge_model if enabled else None,
+        "answer_model": settings.gemini_answer_model_resolved if enabled else None,
         # Which similarity path is live — dense Voyage when keyed AND healthy, else BagOfWords.
         **_embedder_status(),
         # Live settlement economics (config, not hardcoded) — the knobs reviewers care about.
@@ -600,7 +637,7 @@ class PayoutRecipient(BaseModel):
 
 class PayoutRequest(BaseModel):
     amount: Decimal = Field(gt=0, description="Total USDC to split across contributors")
-    contributors: list[PayoutRecipient] = Field(min_length=1)
+    contributors: list[PayoutRecipient] = Field(min_length=1, max_length=1000)
 
 
 @app.post("/payout", tags=["primitives"])
@@ -852,7 +889,7 @@ class Play(BaseModel):
 
 class RoyaltiesRequest(BaseModel):
     budget: Decimal = Field(gt=0, description="The listener's budget for the window")
-    plays: list[Play] = Field(min_length=1)
+    plays: list[Play] = Field(min_length=1, max_length=1000)
     min_count: int = Field(default=1, ge=1, description="Play-gate: fewer plays earn nothing")
 
 
@@ -896,7 +933,9 @@ def royalties(req: RoyaltiesRequest) -> dict[str, Any]:
 
 class QfProject(BaseModel):
     wallet: str = Field(description="0x wallet of the project")
-    contributions: list[Decimal] = Field(default_factory=list, description="Backer amounts")
+    contributions: list[Decimal] = Field(
+        default_factory=list, max_length=10000, description="Backer amounts"
+    )
 
     @field_validator("wallet")
     @classmethod
@@ -908,7 +947,7 @@ class QfProject(BaseModel):
 
 class QfRequest(BaseModel):
     pool: Decimal = Field(gt=0, description="Match pool to distribute")
-    projects: list[QfProject] = Field(min_length=1)
+    projects: list[QfProject] = Field(min_length=1, max_length=1000)
 
 
 @app.post("/qf", tags=["primitives"])
@@ -940,7 +979,9 @@ def qf(req: QfRequest) -> dict[str, Any]:
 
 class RetroProject(BaseModel):
     wallet: str = Field(description="0x wallet of the project/creator")
-    impact: int = Field(ge=0, description="Realized impact: distinct people who engaged")
+    impact: int = Field(
+        ge=0, le=10_000_000, description="Realized impact: distinct people who engaged"
+    )
 
     @field_validator("wallet")
     @classmethod
@@ -952,7 +993,7 @@ class RetroProject(BaseModel):
 
 class RetroRequest(BaseModel):
     pool: Decimal = Field(gt=0, description="Retroactive pool to distribute after the fact")
-    projects: list[RetroProject] = Field(min_length=1)
+    projects: list[RetroProject] = Field(min_length=1, max_length=1000)
 
 
 @app.post("/retro", tags=["primitives"])
@@ -961,8 +1002,12 @@ def retro(req: RetroRequest) -> dict[str, Any]:
     weighted quadratically by realized impact (distinct engagers) — breadth of impact wins,
     not who shouted loudest. Each engager counts as one unit, so weight = impact². Settles
     each project's award through the rail."""
+    # weight = (Σ√c)². With impact unit-contributions that is impact², which a single
+    # contribution of impact² yields identically — so we never materialise an impact-long
+    # list (an unbounded `impact` would otherwise be a memory-exhaustion DoS).
     pairs = quadratic_match(
-        req.pool, [Project(p.wallet, [Decimal(1)] * p.impact) for p in req.projects]
+        req.pool,
+        [Project(p.wallet, [Decimal(p.impact) ** 2]) for p in req.projects],
     )
     projects: list[dict[str, Any]] = []
     total_settled = Decimal(0)
@@ -1090,28 +1135,29 @@ def refund(tx_hash: str, req: RefundRequest) -> dict[str, Any]:
     """Refund/dispute a send — settle the amount to the bound ``refund_to`` (ported from
     circlefin/refund-protocol: the refund destination is set at pay time, refundable by the
     recipient or an arbiter). Carries a dispute reason; idempotency-guarded (refunds once)."""
-    record = _sends.get(tx_hash)
-    if record is None:
-        return {"found": False, "tx_hash": tx_hash}
-    if record["refunded"]:
-        return {"error": "already_refunded", "tx_hash": tx_hash}
-    destination = record["refund_to"] or req.refund_to
-    if not destination:
-        return {"error": "no_refund_address", "tx_hash": tx_hash}
-    refund_tx = _settle_to(f"refund:{tx_hash}", destination, record["amount"], kind="refund")
-    if refund_tx is not None:
-        record["refunded"] = True
-        _record_memo(
-            refund_tx,
-            build_memo(
-                kind="refund",
-                ref=tx_hash,
-                note=f"{req.reason}, by {req.by}",
-                message_from=destination,
-                message_to=destination,
-                in_reply_to=tx_hash,
-            ),
-        )
+    with _book_lock:
+        record = _sends.get(tx_hash)
+        if record is None:
+            return {"found": False, "tx_hash": tx_hash}
+        if record["refunded"]:
+            return {"error": "already_refunded", "tx_hash": tx_hash}
+        destination = record["refund_to"] or req.refund_to
+        if not destination:
+            return {"error": "no_refund_address", "tx_hash": tx_hash}
+        refund_tx = _settle_to(f"refund:{tx_hash}", destination, record["amount"], kind="refund")
+        if refund_tx is not None:
+            record["refunded"] = True
+            _record_memo(
+                refund_tx,
+                build_memo(
+                    kind="refund",
+                    ref=tx_hash,
+                    note=f"{req.reason}, by {req.by}",
+                    message_from=destination,
+                    message_to=destination,
+                    in_reply_to=tx_hash,
+                ),
+            )
     return {
         "refunded": refund_tx is not None,
         "original_tx": tx_hash,
@@ -1208,7 +1254,9 @@ class SettlementIntent(BaseModel):
 
 
 class ApproveRequest(BaseModel):
-    intents: list[SettlementIntent] = Field(min_length=1, description="Batch to approve together")
+    intents: list[SettlementIntent] = Field(
+        min_length=1, max_length=1000, description="Batch to approve together"
+    )
 
 
 @app.post("/workflow/intent", tags=["primitives"])
@@ -1272,7 +1320,9 @@ def workflow_status(wfid: str) -> dict[str, Any]:
 
 class RequestCreate(BaseModel):
     payee: str = Field(description="0x wallet that receives the collected funds")
-    payers: list[str] = Field(min_length=1, description="0x wallets that split the total")
+    payers: list[str] = Field(
+        min_length=1, max_length=1000, description="0x wallets that split the total"
+    )
     total: Decimal = Field(gt=0, description="USDC total to split equally across payers")
 
     @field_validator("payee")
@@ -1335,24 +1385,25 @@ def fulfil_request(rid: str, body: FulfilRequest) -> dict[str, Any]:
     req = _requests.get(rid)
     if req is None:
         return {"found": False, "id": rid}
-    try:
-        share = _requests.fulfil(rid, body.payer)
-    except RequestError as exc:
-        return {"error": str(exc), "id": rid}
-    tx_hash = _settle_to(f"request:{rid}:{body.payer}", req.payee, share.amount, kind="request")
-    if tx_hash is None:
-        return {"error": "settlement_failed", "id": rid}
-    _requests.settled(share, tx_hash)
-    _record_memo(
-        tx_hash,
-        build_memo(
-            kind="invoice",
-            ref=rid,
-            note=f"share of {req.total} to {req.payee}",
-            message_from=body.payer,
-            message_to=req.payee,
-        ),
-    )
+    with _book_lock:
+        try:
+            share = _requests.fulfil(rid, body.payer)
+        except RequestError as exc:
+            return {"error": str(exc), "id": rid}
+        tx_hash = _settle_to(f"request:{rid}:{body.payer}", req.payee, share.amount, kind="request")
+        if tx_hash is None:
+            return {"error": "settlement_failed", "id": rid}
+        _requests.settled(share, tx_hash)
+        _record_memo(
+            tx_hash,
+            build_memo(
+                kind="invoice",
+                ref=rid,
+                note=f"share of {req.total} to {req.payee}",
+                message_from=body.payer,
+                message_to=req.payee,
+            ),
+        )
     return {"id": rid, "settled": True, "tx_hash": tx_hash, **_request_view(req)}
 
 
@@ -1569,24 +1620,25 @@ def gateway_spend(req: GatewaySpend) -> dict[str, Any]:
     ``kit.unifiedBalance.spend``). Settles via the rail, then draws the balance down; errors
     with insufficient_balance if the unified pool is too low. Nothing is drawn if settlement
     fails (two-step prepare/settled)."""
-    try:
-        amount = _gateway.prepare_spend(req.wallet, req.amount)
-    except GatewayError as exc:
-        return {"error": str(exc), "wallet": req.wallet}
-    tx_hash = _settle_to(f"gateway-spend:{req.wallet}", req.to, amount, kind="gateway_spend")
-    if tx_hash is None:
-        return {"error": "settlement_failed", "wallet": req.wallet}
-    acct = _gateway.settled_spend(req.wallet, amount)
-    _record_memo(
-        tx_hash,
-        build_memo(
-            kind="other",
-            ref="gateway-spend",
-            note=f"spent {amount} USDC from unified balance",
-            message_from=req.wallet,
-            message_to=req.to,
-        ),
-    )
+    with _book_lock:
+        try:
+            amount = _gateway.prepare_spend(req.wallet, req.amount)
+        except GatewayError as exc:
+            return {"error": str(exc), "wallet": req.wallet}
+        tx_hash = _settle_to(f"gateway-spend:{req.wallet}", req.to, amount, kind="gateway_spend")
+        if tx_hash is None:
+            return {"error": "settlement_failed", "wallet": req.wallet}
+        acct = _gateway.settled_spend(req.wallet, amount)
+        _record_memo(
+            tx_hash,
+            build_memo(
+                kind="other",
+                ref="gateway-spend",
+                note=f"spent {amount} USDC from unified balance",
+                message_from=req.wallet,
+                message_to=req.to,
+            ),
+        )
     return {
         "spent": True,
         "amount": str(amount),
@@ -1616,7 +1668,9 @@ class MilestoneInput(BaseModel):
 class EscrowCreate(BaseModel):
     client: str = Field(description="0x wallet funding the escrow")
     provider: str = Field(description="0x wallet that receives released tranches")
-    milestones: list[MilestoneInput] = Field(min_length=1, description="Ordered tranches")
+    milestones: list[MilestoneInput] = Field(
+        min_length=1, max_length=1000, description="Ordered tranches"
+    )
 
     @field_validator("client", "provider")
     @classmethod
@@ -1671,24 +1725,27 @@ def release_escrow(eid: str, req: ReleaseRequest) -> dict[str, Any]:
     esc = _escrows.get(eid)
     if esc is None:
         return {"found": False, "id": eid}
-    try:
-        milestone = _escrows.prepare_release(eid, req.index)
-    except EscrowError as exc:
-        return {"error": str(exc), "id": eid}
-    tx_hash = _settle_to(f"escrow:{eid}:{req.index}", esc.provider, milestone.amount, kind="escrow")
-    if tx_hash is None:
-        return {"error": "settlement_failed", "id": eid}
-    _escrows.released(milestone, tx_hash)
-    _record_memo(
-        tx_hash,
-        build_memo(
-            kind="job",
-            ref=f"{eid}#{req.index}",
-            note=f"milestone '{milestone.label}' released",
-            message_from=esc.client,
-            message_to=esc.provider,
-        ),
-    )
+    with _book_lock:
+        try:
+            milestone = _escrows.prepare_release(eid, req.index)
+        except EscrowError as exc:
+            return {"error": str(exc), "id": eid}
+        tx_hash = _settle_to(
+            f"escrow:{eid}:{req.index}", esc.provider, milestone.amount, kind="escrow"
+        )
+        if tx_hash is None:
+            return {"error": "settlement_failed", "id": eid}
+        _escrows.released(milestone, tx_hash)
+        _record_memo(
+            tx_hash,
+            build_memo(
+                kind="job",
+                ref=f"{eid}#{req.index}",
+                note=f"milestone '{milestone.label}' released",
+                message_from=esc.client,
+                message_to=esc.provider,
+            ),
+        )
     return {"released": True, "tx_hash": tx_hash, **_escrow_view(esc)}
 
 
@@ -1718,7 +1775,9 @@ class LineItemInput(BaseModel):
 
 
 class OrderCreate(BaseModel):
-    items: list[LineItemInput] = Field(min_length=1, description="Order line-items")
+    items: list[LineItemInput] = Field(
+        min_length=1, max_length=1000, description="Order line-items"
+    )
 
 
 def _order_view(order: Any) -> dict[str, Any]:
@@ -1837,16 +1896,20 @@ def run_schedule(sid: str) -> dict[str, Any]:
     schedule = _schedules.get(sid)
     if schedule is None:
         return {"found": False, "id": sid}
-    try:
-        schedule = _schedules.prepare_run(sid)
-    except ScheduleError as exc:
-        return {"error": str(exc), "id": sid}
-    tx_hash = _settle_to(
-        f"schedule:{sid}:{schedule.runs_done}", schedule.payee, schedule.amount, kind="schedule"
-    )
-    if tx_hash is None:
-        return {"error": "settlement_failed", "id": sid}
-    _schedules.ran(schedule, tx_hash)
+    with _book_lock:
+        try:
+            schedule = _schedules.prepare_run(sid)
+        except ScheduleError as exc:
+            return {"error": str(exc), "id": sid}
+        tx_hash = _settle_to(
+            f"schedule:{sid}:{schedule.runs_done}",
+            schedule.payee,
+            schedule.amount,
+            kind="schedule",
+        )
+        if tx_hash is None:
+            return {"error": "settlement_failed", "id": sid}
+        _schedules.ran(schedule, tx_hash)
     return {"ran": True, "tx_hash": tx_hash, **_schedule_view(schedule)}
 
 
@@ -1927,14 +1990,15 @@ def treasury_status() -> dict[str, Any]:
 def treasury_sweep(req: SweepRequest) -> dict[str, Any]:
     """Sweep the whole treasury balance to a destination (arc-fintech rebalance): settles the
     balance via the rail, then zeroes the treasury. Errors if there's nothing to sweep."""
-    try:
-        amount = _treasury.prepare_sweep()
-    except TreasuryError as exc:
-        return {"error": str(exc)}
-    tx_hash = _settle_to(f"treasury-sweep:{req.to}", req.to, amount, kind="sweep")
-    if tx_hash is None:
-        return {"error": "settlement_failed"}
-    _treasury.swept(amount, req.to, tx_hash)
+    with _book_lock:
+        try:
+            amount = _treasury.prepare_sweep()
+        except TreasuryError as exc:
+            return {"error": str(exc)}
+        tx_hash = _settle_to(f"treasury-sweep:{req.to}", req.to, amount, kind="sweep")
+        if tx_hash is None:
+            return {"error": "settlement_failed"}
+        _treasury.swept(amount, req.to, tx_hash)
     return {
         "swept": True,
         "amount": str(amount),

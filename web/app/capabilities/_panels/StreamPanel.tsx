@@ -67,34 +67,34 @@ export function StreamPanel() {
           <input
             value={payer}
             onChange={(e) => setPayer(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
           />
         </Field>
         <Field label="Payee">
           <input
             value={payee}
             onChange={(e) => setPayee(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
           />
         </Field>
         <Field label="Rate (USDC/s)">
           <input
             value={rate}
             onChange={(e) => setRate(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
           />
         </Field>
         <Field label="Tick seconds">
           <input
             value={seconds}
             onChange={(e) => setSeconds(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
           />
         </Field>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 text-sm">
-        <button type="button" onClick={open} disabled={busy} className="rounded bg-black px-3 py-1.5 text-white disabled:opacity-50">
+        <button type="button" onClick={open} disabled={busy} className="rounded bg-primary-fixed-dim px-3 py-1.5 text-on-primary-fixed font-bold disabled:opacity-50">
           Open
         </button>
         <button type="button" onClick={() => action("tick")} disabled={busy || !stream} className="rounded border px-3 py-1.5 disabled:opacity-40">
@@ -113,7 +113,7 @@ export function StreamPanel() {
           type="button"
           onClick={() => setLive((v) => !v)}
           disabled={!stream}
-          className={`rounded px-3 py-1.5 disabled:opacity-40 ${live ? "bg-green-600 text-white" : "border"}`}
+          className={`rounded px-3 py-1.5 disabled:opacity-40 ${live ? "bg-secondary-fixed-dim text-white" : "border"}`}
         >
           {live ? "● Live" : "Go live (1/s)"}
         </button>
@@ -124,20 +124,20 @@ export function StreamPanel() {
       {stream && (
         <dl className="mt-4 space-y-1 font-mono text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">stream</span>
+            <span className="text-on-surface-variant">stream</span>
             <span>{stream.stream_id}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">status</span>
+            <span className="text-on-surface-variant">status</span>
             <span>{stream.status}</span>
           </div>
           {stream.billed !== undefined && (
             <div className="flex justify-between">
-              <span className="text-gray-500">last billed</span>
+              <span className="text-on-surface-variant">last billed</span>
               <span>{stream.billed}</span>
             </div>
           )}
-          <div className="flex justify-between text-green-700">
+          <div className="flex justify-between text-secondary-fixed-dim">
             <span>total settled</span>
             <span>{stream.total_settled} USDC</span>
           </div>

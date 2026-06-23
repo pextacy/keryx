@@ -26,4 +26,22 @@ export interface AskResponse {
   attestation: Attestation;
 }
 
-export const ARC_EXPLORER_TX = "https://explorer.testnet.arc.network/tx/";
+// Arc block explorer (arcscan, Blockscout-style). Resolved from the selected
+// network via NEXT_PUBLIC_ARC_EXPLORER (default Arc Testnet), so the same build
+// points at testnet or mainnet by env. Matches Circle's BLOCK_EXPLORERS map.
+export const ARC_NETWORK = process.env.NEXT_PUBLIC_KERYX_NETWORK ?? "testnet";
+export const ARC_EXPLORER =
+  process.env.NEXT_PUBLIC_ARC_EXPLORER ?? "https://testnet.arcscan.app";
+export const ARC_EXPLORER_TX = `${ARC_EXPLORER}/tx/`;
+
+// Source URLs come from the agent (ultimately from external sources), so only render
+// them as links when they use a safe scheme — never `javascript:` etc. Falls back to "#".
+export function safeHref(url: string | null | undefined): string {
+  if (!url) return "#";
+  try {
+    const u = new URL(url, "http://localhost");
+    return u.protocol === "http:" || u.protocol === "https:" ? url : "#";
+  } catch {
+    return "#";
+  }
+}

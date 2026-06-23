@@ -56,7 +56,7 @@ export function CapabilityIndexPanel() {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1"
+            className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1"
           >
             <option value="">all categories</option>
             {Object.keys(ix.by_category).map((c) => (
@@ -65,7 +65,7 @@ export function CapabilityIndexPanel() {
               </option>
             ))}
           </select>
-          <label className="flex items-center gap-1 text-gray-600">
+          <label className="flex items-center gap-1 text-on-surface-variant">
             <input
               type="checkbox"
               checked={portedOnly}
@@ -73,14 +73,14 @@ export function CapabilityIndexPanel() {
             />
             ported only
           </label>
-          <span className="text-gray-400">{filtered.length} shown</span>
+          <span className="text-outline">{filtered.length} shown</span>
         </div>
       )}
 
       <div className="space-y-4">
         {groups.map(([cat, caps]) => (
           <div key={cat}>
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-outline">
               {CATEGORY_LABEL[cat] ?? cat}
             </h4>
             <ul className="mt-1 space-y-1.5">
@@ -91,21 +91,21 @@ export function CapabilityIndexPanel() {
                     onClick={() => setOpen(open === c.name ? null : c.name)}
                     className="flex w-full flex-wrap items-baseline gap-x-2 text-left"
                   >
-                    <span className="text-gray-400">{open === c.name ? "▾" : "▸"}</span>
+                    <span className="text-outline">{open === c.name ? "▾" : "▸"}</span>
                     <span className="font-medium">{c.name}</span>
                     {c.upstream && (
-                      <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-700">
+                      <span className="rounded bg-primary-fixed-dim/10 px-1.5 py-0.5 text-[11px] text-primary-fixed-dim">
                         {c.upstream}
                       </span>
                     )}
-                    <span className="font-mono text-[11px] text-gray-400">
+                    <span className="font-mono text-[11px] text-outline">
                       {c.endpoints.join("  ")}
                     </span>
                   </button>
-                  <div className="ml-4 text-xs text-gray-500">{c.summary}</div>
+                  <div className="ml-4 text-xs text-on-surface-variant">{c.summary}</div>
                   {open === c.name && c.example && (
-                    <div className="ml-4 mt-1 flex items-start gap-1 rounded bg-gray-900 p-2">
-                      <code className="flex-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11px] text-gray-100">
+                    <div className="ml-4 mt-1 flex items-start gap-1 rounded bg-surface-container-high p-2">
+                      <code className="flex-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11px] text-on-surface">
                         {c.example}
                       </code>
                       <Copy text={c.example} />

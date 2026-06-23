@@ -1,19 +1,19 @@
 """Build the agent's grounding + answering components from settings.
 
-One decision point for the whole agent: when an Anthropic API key is configured the
-real Claude judge + answerer are used (the production moat), and when a Voyage key is
-set the dense embedder powers the similarity signal; otherwise the offline heuristics.
-Everything downstream (scorer, pipeline) is identical either way.
+One decision point for the whole agent: when a Gemini API key is configured the real
+Gemini judge + answerer are used (the production moat), and when a Voyage key is set the
+dense embedder powers the similarity signal; otherwise the offline heuristics. Everything
+downstream (scorer, pipeline) is identical either way.
 """
 
 from __future__ import annotations
 
-from agent.answerer import Answerer, AnthropicAnswerer, ExtractiveAnswerer
+from agent.answerer import Answerer, ExtractiveAnswerer, GeminiAnswerer
 from agent.grounding.embeddings import Embedder, VoyageEmbedder
-from agent.grounding.judge import AnthropicJudge, HeuristicJudge, Judge
+from agent.grounding.judge import GeminiJudge, HeuristicJudge, Judge
 from agent.grounding.scorer import GroundingScorer
 from agent.ledger import Ledger, LedgerStore
-from agent.llm import get_client
+from agent.llm import get_gemini_client
 from agent.pg_ledger import PgLedger
 from registry.pg import psycopg_connect
 from shared.chain import ChainReader, JsonRpcClient
@@ -129,27 +129,31 @@ def build_embedder(config: Settings | None = None) -> Embedder | None:
 
 def build_judge(config: Settings | None = None) -> Judge:
     cfg = config or default_settings
-    client = get_client(cfg)
-    if client is None:
+    gemini = get_gemini_client(cfg)
+    if gemini is None:
         return HeuristicJudge()
-    return AnthropicJudge(
-        client,
-        model=cfg.judge_model,
-        effort=cfg.judge_effort,
+    return GeminiJudge(
+        gemini,
+        model=cfg.gemini_judge_model,
         max_tokens=cfg.llm_max_tokens,
+        max_retries=cfg.llm_max_retries,
+        backoff_base=cfg.llm_backoff_base,
+        backoff_cap=cfg.llm_backoff_cap,
     )
 
 
 def build_answerer(config: Settings | None = None) -> Answerer:
     cfg = config or default_settings
-    client = get_client(cfg)
-    if client is None:
+    gemini = get_gemini_client(cfg)
+    if gemini is None:
         return ExtractiveAnswerer()
-    return AnthropicAnswerer(
-        client,
-        model=cfg.answer_model_resolved,
-        effort=cfg.answer_effort,
+    return GeminiAnswerer(
+        gemini,
+        model=cfg.gemini_answer_model_resolved,
         max_tokens=cfg.llm_max_tokens,
+        max_retries=cfg.llm_max_retries,
+        backoff_base=cfg.llm_backoff_base,
+        backoff_cap=cfg.llm_backoff_cap,
     )
 
 

@@ -9,7 +9,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
       <div className="text-xl font-semibold">{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-xs text-on-surface-variant">{label}</div>
     </div>
   );
 }
@@ -62,7 +62,7 @@ export function MetricsPanel() {
         </div>
       )}
       {rec && (
-        <p className="mt-3 text-xs text-gray-600">
+        <p className="mt-3 text-xs text-on-surface-variant">
           {rec.enabled
             ? `chain reconcile: ${rec.verified}/${rec.ledger_rows} verified · ${rec.in_sync ? "in sync ✓" : `${rec.unverified} unverified`}`
             : "chain reconcile: opt-in (set KERYX_LEDGER_VERIFY_CHAIN)"}

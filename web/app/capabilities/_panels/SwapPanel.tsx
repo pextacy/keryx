@@ -62,7 +62,7 @@ export function SwapPanel() {
           <select
             value={tokenIn}
             onChange={(e) => setTokenIn(e.target.value as (typeof TOKENS)[number])}
-            className="rounded border border-gray-300 px-2 py-1 font-mono text-sm"
+            className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-sm"
           >
             {TOKENS.map((t) => (
               <option key={t}>{t}</option>
@@ -81,7 +81,7 @@ export function SwapPanel() {
           <select
             value={tokenOut}
             onChange={(e) => setTokenOut(e.target.value as (typeof TOKENS)[number])}
-            className="rounded border border-gray-300 px-2 py-1 font-mono text-sm"
+            className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-sm"
           >
             {TOKENS.map((t) => (
               <option key={t}>{t}</option>
@@ -95,7 +95,7 @@ export function SwapPanel() {
           <input
             value={amountIn}
             onChange={(e) => setAmountIn(e.target.value)}
-            className="w-32 rounded border border-gray-300 px-2 py-1 font-mono"
+            className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
           />
         </Field>
       </div>
@@ -113,28 +113,28 @@ export function SwapPanel() {
           type="button"
           onClick={() => void run<SwapResponse>("/api/swap", setRes)}
           disabled={busy || tokenIn === tokenOut}
-          className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          className="rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
         >
           {busy ? "…" : "Swap"}
         </button>
       </div>
       {tokenIn === tokenOut && (
-        <p className="mt-2 text-xs text-amber-700">pick two different tokens</p>
+        <p className="mt-2 text-xs text-error">pick two different tokens</p>
       )}
 
       {quote && !res && (
         <dl className="mt-4 space-y-1 font-mono text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">you get</span>
-            <span className="text-green-700">
+            <span className="text-on-surface-variant">you get</span>
+            <span className="text-secondary-fixed-dim">
               {quote.amount_out} {quote.token_out}
             </span>
           </div>
-          <div className="flex justify-between text-xs text-gray-500">
+          <div className="flex justify-between text-xs text-on-surface-variant">
             <span>rate</span>
             <span>{quote.effective_rate}</span>
           </div>
-          <div className="flex justify-between text-xs text-gray-500">
+          <div className="flex justify-between text-xs text-on-surface-variant">
             <span>app fee</span>
             <span>
               {quote.app_fee} {quote.token_out} ({quote.app_fee_bps} bps)
@@ -146,8 +146,8 @@ export function SwapPanel() {
       {res && (
         <dl className="mt-4 space-y-1 font-mono text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">swapped</span>
-            <span className="text-green-700">
+            <span className="text-on-surface-variant">swapped</span>
+            <span className="text-secondary-fixed-dim">
               {res.amount_in} {res.token_in} → {res.amount_out} {res.token_out}
             </span>
           </div>
@@ -156,7 +156,7 @@ export function SwapPanel() {
               <a
                 href={ARC_EXPLORER_TX + res.tx_hash}
                 target="_blank"
-                className="text-blue-600 underline"
+                className="text-primary-fixed-dim underline"
               >
                 tx {res.tx_hash.slice(0, 14)}…
               </a>

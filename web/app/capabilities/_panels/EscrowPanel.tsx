@@ -77,14 +77,14 @@ export function EscrowPanel() {
               <input
                 value={client}
                 onChange={(e) => setClient(e.target.value)}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+                className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               />
             </Field>
             <Field label="Provider (paid)">
               <input
                 value={provider}
                 onChange={(e) => setProvider(e.target.value)}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+                className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               />
             </Field>
           </div>
@@ -94,12 +94,12 @@ export function EscrowPanel() {
                 <input
                   value={r.label}
                   onChange={(e) => update(i, { label: e.target.value })}
-                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                  className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 text-sm"
                 />
                 <input
                   value={r.amount}
                   onChange={(e) => update(i, { amount: e.target.value })}
-                  className="w-20 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+                  className="w-20 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
                 />
               </div>
             ))}
@@ -112,7 +112,7 @@ export function EscrowPanel() {
               type="button"
               onClick={() => void create()}
               disabled={busy}
-              className="rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
             >
               {busy ? "…" : "Open escrow"}
             </button>
@@ -121,18 +121,18 @@ export function EscrowPanel() {
       ) : (
         <>
           <div className="flex items-center justify-between text-sm">
-            <span className="font-mono text-gray-500">{esc.id}</span>
+            <span className="font-mono text-on-surface-variant">{esc.id}</span>
             <span
               className={`rounded px-2 py-0.5 text-xs font-medium ${
                 esc.status === "completed"
-                  ? "bg-green-100 text-green-700"
-                  : "bg-amber-100 text-amber-700"
+                  ? "bg-secondary-fixed-dim/10 text-secondary-fixed-dim"
+                  : "bg-error-container/20 text-error"
               }`}
             >
               {esc.status}
             </span>
           </div>
-          <div className="mt-1 text-xs text-gray-500">
+          <div className="mt-1 text-xs text-on-surface-variant">
             locked {esc.locked} of {esc.total} USDC
           </div>
 
@@ -141,18 +141,18 @@ export function EscrowPanel() {
               <li key={i} className="flex items-center justify-between gap-2 text-sm">
                 <span className="truncate">{m.label}</span>
                 <span className="flex items-center gap-2 font-mono text-xs">
-                  <span className="text-green-700">{m.amount}</span>
+                  <span className="text-secondary-fixed-dim">{m.amount}</span>
                   {m.status === "released" ? (
                     m.tx_hash ? (
                       <TxLink hash={m.tx_hash} prefix="released" />
                     ) : (
-                      <span className="text-green-600">released ✓</span>
+                      <span className="text-secondary-fixed-dim">released ✓</span>
                     )
                   ) : (
                     <button
                       type="button"
                       onClick={() => void release(i)}
-                      className="rounded border border-gray-300 px-2 py-0.5 text-gray-700 hover:bg-gray-50"
+                      className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-0.5 text-on-surface hover:bg-white/5"
                     >
                       Release
                     </button>

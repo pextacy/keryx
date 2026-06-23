@@ -65,7 +65,7 @@ export function SendPanel() {
         <input
           value={to}
           onChange={(e) => setTo(e.target.value)}
-          className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+          className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
         />
       </Field>
       <div className="mt-2">
@@ -73,7 +73,7 @@ export function SendPanel() {
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-32 rounded border border-gray-300 px-2 py-1 font-mono"
+            className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
           />
         </Field>
       </div>
@@ -82,7 +82,7 @@ export function SendPanel() {
           <input
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 text-sm"
             placeholder="citation URL, attestation hash, job id…"
           />
         </Field>
@@ -92,7 +92,7 @@ export function SendPanel() {
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 text-sm"
           >
             {["citation", "invoice", "attestation", "authorization", "job", "note", "other"].map((k) => (
               <option key={k}>{k}</option>
@@ -103,11 +103,11 @@ export function SendPanel() {
           <input
             value={ref}
             onChange={(e) => setRef(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
           />
         </Field>
       </div>
-      <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+      <label className="mt-2 flex items-center gap-2 text-xs text-on-surface-variant">
         <input
           type="checkbox"
           checked={confidential}
@@ -121,7 +121,7 @@ export function SendPanel() {
             value={attachmentUrl}
             onChange={(e) => setAttachmentUrl(e.target.value)}
             placeholder="https://…/receipt.png"
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
           />
         </Field>
       </div>
@@ -130,7 +130,7 @@ export function SendPanel() {
           <input
             value={refundTo}
             onChange={(e) => setRefundTo(e.target.value)}
-            className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+            className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
           />
         </Field>
       </div>
@@ -139,7 +139,7 @@ export function SendPanel() {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="mt-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+        className="mt-4 rounded bg-primary-fixed-dim px-4 py-2 text-on-primary-fixed font-bold disabled:opacity-50"
       >
         {busy ? "Sending…" : "Send"}
       </button>
@@ -149,16 +149,16 @@ export function SendPanel() {
       {res && (
         <dl className="mt-4 space-y-1 font-mono text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-500">amount</span>
-            <span className="text-green-700">{res.amount} USDC</span>
+            <span className="text-on-surface-variant">amount</span>
+            <span className="text-secondary-fixed-dim">{res.amount} USDC</span>
           </div>
-          <div className="truncate text-gray-600">memo: {res.memo}</div>
+          <div className="truncate text-on-surface-variant">memo: {res.memo}</div>
           {res.tx_hash && (
             <div className="flex items-center gap-1">
               <a
                 href={ARC_EXPLORER_TX + res.tx_hash}
                 target="_blank"
-                className="text-blue-600 underline"
+                className="text-primary-fixed-dim underline"
               >
                 tx {res.tx_hash.slice(0, 14)}…
               </a>
@@ -167,12 +167,12 @@ export function SendPanel() {
           )}
           {res.tx_hash &&
             (refunded ? (
-              <span className="text-purple-700">refunded ✓</span>
+              <span className="text-tertiary-fixed-dim">refunded ✓</span>
             ) : (
               <button
                 type="button"
                 onClick={() => void refund()}
-                className="self-start rounded border border-purple-300 px-2 py-0.5 text-xs text-purple-700"
+                className="self-start rounded border border-tertiary-fixed-dim/40 px-2 py-0.5 text-xs text-tertiary-fixed-dim"
               >
                 refund (dispute)
               </button>

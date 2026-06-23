@@ -36,14 +36,14 @@ export function ConfigPanel() {
           <dl className="space-y-1 text-sm">
             {rows.map((r) => (
               <div key={r.label} className="flex justify-between">
-                <span className="text-gray-500">{r.label}</span>
-                <span className="font-mono text-gray-800">{r.value}</span>
+                <span className="text-on-surface-variant">{r.label}</span>
+                <span className="font-mono text-on-surface">{r.value}</span>
               </div>
             ))}
           </dl>
-          <div className="mt-3 border-t pt-2 text-xs text-gray-500">
-            rail <span className="font-mono text-gray-700">{cfg.rail}</span> · judge{" "}
-            <span className="font-mono text-gray-700">{cfg.judge}</span> · {cfg.sources_indexed}{" "}
+          <div className="mt-3 border-t pt-2 text-xs text-on-surface-variant">
+            rail <span className="font-mono text-on-surface">{cfg.rail}</span> · judge{" "}
+            <span className="font-mono text-on-surface">{cfg.judge}</span> · {cfg.sources_indexed}{" "}
             sources indexed
           </div>
         </>

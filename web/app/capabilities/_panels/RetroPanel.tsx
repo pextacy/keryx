@@ -48,7 +48,7 @@ export function RetroPanel() {
         <input
           value={pool}
           onChange={(e) => setPool(e.target.value)}
-          className="w-32 rounded border border-gray-300 px-2 py-1 font-mono"
+          className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
         />
       </Field>
 
@@ -58,13 +58,13 @@ export function RetroPanel() {
             <input
               value={r.wallet}
               onChange={(e) => setRow(i, { wallet: e.target.value })}
-              className="flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               placeholder="0x project"
             />
             <input
               value={r.impact}
               onChange={(e) => setRow(i, { impact: e.target.value })}
-              className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+              className="w-24 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               placeholder="impact"
             />
           </div>
@@ -72,7 +72,7 @@ export function RetroPanel() {
         <button
           type="button"
           onClick={() => setRows((prev) => [...prev, { wallet: "", impact: "1" }])}
-          className="text-sm text-blue-600"
+          className="text-sm text-primary-fixed-dim"
         >
           + project
         </button>
@@ -82,7 +82,7 @@ export function RetroPanel() {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="mt-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+        className="mt-4 rounded bg-primary-fixed-dim px-4 py-2 text-on-primary-fixed font-bold disabled:opacity-50"
       >
         {busy ? "Awarding…" : "Award by impact"}
       </button>
@@ -94,10 +94,10 @@ export function RetroPanel() {
           {res.projects.map((p) => (
             <li key={p.wallet} className="flex items-center justify-between font-mono">
               <span className="truncate">{p.wallet.slice(0, 12)}… · impact {p.impact}</span>
-              <span className="text-green-700">+{p.award}</span>
+              <span className="text-secondary-fixed-dim">+{p.award}</span>
             </li>
           ))}
-          <li className="mt-1 border-t pt-1 text-xs text-gray-500">
+          <li className="mt-1 border-t pt-1 text-xs text-on-surface-variant">
             total awarded {res.total_awarded} USDC
           </li>
         </ul>

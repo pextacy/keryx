@@ -8,6 +8,18 @@ what was verified, from where, and when, so the rest of the build trusts source.
 Apache-2.0, commit pinned in `vendor/`) — files `lib/x402.ts`, `agent.mts`,
 `generate-wallets.mts` — and the live Arc testnet RPC.
 
+## Network-parametric (not hardcoded)
+
+These constants are **not hardcoded in business logic** — they are a named-network
+preset resolved at runtime from `KERYX_NETWORK` (default `testnet`). The single
+source of truth is `shared/network.py` (Python) and `rail/m0_spike/network.ts` +
+`rail/appkit/network.ts` (TS); both read the same `KERYX_*` env vars so the two
+sides never drift. The `testnet` preset is the verified table below. The `mainnet`
+preset is deliberately empty: selecting it requires every constant to be supplied
+(verified vs Circle/Arc **mainnet** docs) via env, or startup fails loud rather
+than reusing a testnet address. **The hackathon is testnet-only** — mainnet support
+is structural readiness, not a green-lit mainnet deployment.
+
 ## Arc Testnet constants
 
 | Thing | Value | Source |
@@ -20,7 +32,7 @@ Apache-2.0, commit pinned in `vendor/`) — files `lib/x402.ts`, `agent.mts`,
 | Gas token | **native USDC, 18 decimals** (`parseEther` for gas; `parseUnits(_,6)` for ERC-20 value) | `agent.mts` |
 | viem chain | `arcTestnet` from `viem/chains`; GatewayClient `chain: "arcTestnet"` | `agent.mts` |
 | Faucet | `https://faucet.circle.com/` (Arc Testnet) | `generate-wallets.mts` |
-| Explorer | `https://explorer.testnet.arc.network` (verify path on first tx) | Arc docs |
+| Explorer | `https://testnet.arcscan.app` (verify path on first tx) | Arc docs |
 
 ## SDK — `@circle-fin/x402-batching`
 
@@ -57,10 +69,17 @@ the rail language; M0 runs in TypeScript regardless.
   "asset": "0x3600000000000000000000000000000000000000",
   "amount": "<atomic USDC, 6dp, as string>",
   "payTo": "<seller/author address>",
-  "maxTimeoutSeconds": 345600,
+  "maxTimeoutSeconds": 608400,
   "extra": { "name": "GatewayWalletBatched", "version": "1",
              "verifyingContract": "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" } }
 ```
+⚠️ **`maxTimeoutSeconds` must be ≥ Circle's `minValiditySeconds`** (currently **604800** = 7d
+on Arc testnet — query `GET https://gateway-api-testnet.circle.com/v1/x402/supported`). The
+client signs `validBefore = now + maxTimeoutSeconds`; the facilitator rejects anything whose
+remaining validity is under the minimum with `authorization_validity_too_short`. The
+`@circle-fin/x402-batching` SDK still defaults this to `345600` (4d) — below the requirement —
+so the seller sets it explicitly to `604800 + 3600` (7d + 1h latency buffer). Verified live on
+2026-06-23 by the first cleared M0 settlement.
 
 **Retry request** (client): header `payment-signature` = base64(JSON PaymentPayload):
 ```json

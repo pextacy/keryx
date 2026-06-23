@@ -54,7 +54,7 @@ export function QfPanel() {
         <input
           value={pool}
           onChange={(e) => setPool(e.target.value)}
-          className="w-32 rounded border border-gray-300 px-2 py-1 font-mono"
+          className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
         />
       </Field>
 
@@ -64,13 +64,13 @@ export function QfPanel() {
             <input
               value={p.wallet}
               onChange={(e) => setProject(i, { wallet: e.target.value })}
-              className="flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               placeholder="0x project"
             />
             <input
               value={p.contributions}
               onChange={(e) => setProject(i, { contributions: e.target.value })}
-              className="w-32 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               placeholder="1,1,1"
             />
           </div>
@@ -78,7 +78,7 @@ export function QfPanel() {
         <button
           type="button"
           onClick={() => setProjects((prev) => [...prev, { wallet: "", contributions: "1" }])}
-          className="text-sm text-blue-600"
+          className="text-sm text-primary-fixed-dim"
         >
           + project
         </button>
@@ -88,7 +88,7 @@ export function QfPanel() {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="mt-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+        className="mt-4 rounded bg-primary-fixed-dim px-4 py-2 text-on-primary-fixed font-bold disabled:opacity-50"
       >
         {busy ? "Matching…" : "Match pool"}
       </button>
@@ -102,10 +102,10 @@ export function QfPanel() {
               <span className="truncate">
                 {p.wallet.slice(0, 12)}… · {p.backers} backers · raised {p.direct_total}
               </span>
-              <span className="text-green-700">+{p.match}</span>
+              <span className="text-secondary-fixed-dim">+{p.match}</span>
             </li>
           ))}
-          <li className="mt-1 border-t pt-1 text-xs text-gray-500">
+          <li className="mt-1 border-t pt-1 text-xs text-on-surface-variant">
             total matched {res.total_matched} USDC
           </li>
         </ul>

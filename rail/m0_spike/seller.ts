@@ -10,11 +10,8 @@
  */
 import { createServer } from "node:http";
 import { BatchFacilitatorClient } from "@circle-fin/x402-batching/server";
-
-// Verified constants — see docs/VERIFIED-SIGNATURES.md.
-const ARC_TESTNET_NETWORK = "eip155:5042002";
-const ARC_TESTNET_USDC = "0x3600000000000000000000000000000000000000";
-const ARC_TESTNET_GATEWAY_WALLET = "0x0077777d7EBA4688BDeF3E311b846F25870A19B9";
+// Chain constants resolved from KERYX_NETWORK (default testnet). See network.ts.
+import { CAIP2_NETWORK, USDC, GATEWAY_WALLET, txUrl, KERYX_NETWORK } from "./network.ts";
 
 const AUTHOR_ADDRESS = process.env.AUTHOR_ADDRESS as `0x${string}` | undefined;
 const PORT = Number(process.env.SELLER_PORT ?? 3402);
@@ -27,19 +24,30 @@ if (!AUTHOR_ADDRESS) {
 
 const facilitator = new BatchFacilitatorClient();
 
+// Circle's Gateway facilitator requires each authorization to be valid for at
+// least `minValiditySeconds` (7 days on Arc testnet — see /v1/x402/supported).
+// The client signs validBefore = now + maxTimeoutSeconds, so maxTimeoutSeconds
+// MUST be >= that minimum or verify fails with `authorization_validity_too_short`.
+// The @circle-fin/x402-batching library still hardcodes 4 days (345600), which is
+// now below the requirement, so we set it explicitly. The extra hour absorbs the
+// signing + network latency between the client computing `now` and the facilitator
+// re-checking the remaining window.
+const GATEWAY_MIN_VALIDITY_SECONDS = 604800; // 7 days, per Circle /supported
+const MAX_TIMEOUT_SECONDS = GATEWAY_MIN_VALIDITY_SECONDS + 3600;
+
 function buildRequirements(payTo: string, price: string) {
   const amount = Math.round(parseFloat(price) * 1_000_000); // USDC 6 decimals
   return {
     scheme: "exact" as const,
-    network: ARC_TESTNET_NETWORK,
-    asset: ARC_TESTNET_USDC,
+    network: CAIP2_NETWORK,
+    asset: USDC,
     amount: amount.toString(),
     payTo,
-    maxTimeoutSeconds: 345600,
+    maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
     extra: {
       name: "GatewayWalletBatched",
       version: "1",
-      verifyingContract: ARC_TESTNET_GATEWAY_WALLET,
+      verifyingContract: GATEWAY_WALLET,
     },
   };
 }
@@ -109,7 +117,7 @@ const server = createServer(async (req, res) => {
       `[seller] SETTLED ${price} USDC from ${payer} -> author ${payTo}`,
     );
     console.log(`[seller] tx: ${settle.transaction}`);
-    console.log(`[seller] explorer: https://explorer.testnet.arc.network/tx/${settle.transaction}`);
+    console.log(`[seller] explorer: ${txUrl(settle.transaction)}`);
 
     const paymentResponse = Buffer.from(
       JSON.stringify({
@@ -132,5 +140,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`[seller] M0 citation-toll seller on http://localhost:${PORT}${endpoint}`);
-  console.log(`[seller] payTo author ${AUTHOR_ADDRESS}, toll ${TOLL} USDC`);
+  console.log(`[seller] network=${KERYX_NETWORK} (${CAIP2_NETWORK}), payTo author ${AUTHOR_ADDRESS}, toll ${TOLL} USDC`);
 });

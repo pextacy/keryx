@@ -35,6 +35,9 @@ def config() -> dict[str, Any]:
         "citation_toll_min": str(settings.citation_toll_min),
         "citation_toll_max": str(settings.citation_toll_max),
         "grounding_threshold": settings.grounding_threshold,
+        "network": settings.network,
         "arc_chain_id": hex(settings.arc_chain_id),
+        "caip2_network": settings.caip2_network,
+        "explorer_url": settings.explorer_url,
         "rpc_configured": bool(settings.rpc_url),
     }

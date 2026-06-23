@@ -57,7 +57,7 @@ export function HistoryPanel() {
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])}
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 text-sm"
           >
             {KINDS.map((k) => (
               <option key={k || "all"} value={k}>
@@ -76,7 +76,7 @@ export function HistoryPanel() {
       </div>
 
       {data && data.count === 0 && (
-        <p className="mt-3 text-xs text-gray-500">no settlements yet — use a panel or run the demo</p>
+        <p className="mt-3 text-xs text-on-surface-variant">no settlements yet — use a panel or run the demo</p>
       )}
 
       {data && data.by_kind && data.by_kind.length > 0 && (
@@ -85,26 +85,26 @@ export function HistoryPanel() {
             <span
               key={b.kind}
               title={`${b.volume_usdc} USDC`}
-              className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"
+              className="rounded bg-white/5 px-2 py-0.5 text-[11px] text-on-surface-variant"
             >
-              {b.kind} <span className="font-semibold text-gray-800">{b.count}</span>
+              {b.kind} <span className="font-semibold text-on-surface">{b.count}</span>
             </span>
           ))}
         </div>
       )}
 
       {data && data.count > 0 && (
-        <ul className="mt-3 divide-y divide-gray-100 text-sm">
+        <ul className="mt-3 divide-y divide-white/5 text-sm">
           {data.settlements.map((s) => (
             <li key={s.seq} className="flex items-center justify-between gap-2 py-1.5">
               <span className="flex items-center gap-2">
-                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
+                <span className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-on-surface-variant">
                   {s.kind}
                 </span>
-                <span className="font-mono text-xs text-gray-400">{s.wallet.slice(0, 10)}…</span>
+                <span className="font-mono text-xs text-outline">{s.wallet.slice(0, 10)}…</span>
               </span>
               <span className="flex items-center gap-2 font-mono text-xs">
-                <span className="text-green-700">{s.amount}</span>
+                <span className="text-secondary-fixed-dim">{s.amount}</span>
                 {s.tx_hash && <TxLink hash={s.tx_hash} prefix="tx" chars={0} />}
               </span>
             </li>

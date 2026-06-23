@@ -185,8 +185,15 @@ class ChainReader:
         if receipt.get("status") not in ("0x1", "0x01"):
             return ChainVerification(tx_hash, False, reason="reverted")
 
-        block = int(receipt["blockNumber"], 16) if receipt.get("blockNumber") else None
-        transfer = self._find_transfer(receipt.get("logs") or [])
+        # Decoding hex fields can raise on a malformed/forked node response; keep it inside
+        # the guard so the "never raises" contract holds and /ledger degrades, not crashes.
+        try:
+            block = int(receipt["blockNumber"], 16) if receipt.get("blockNumber") else None
+            transfer = self._find_transfer(receipt.get("logs") or [])
+        except Exception as exc:  # noqa: BLE001 — degrade to unverified
+            log.warning("verify_citation decode failed for %s: %s", tx_hash, exc)
+            return ChainVerification(tx_hash, False, reason=f"decode_error: {type(exc).__name__}")
+
         if transfer is None:
             return ChainVerification(tx_hash, False, block=block, reason="no_usdc_transfer")
         to, amount = transfer

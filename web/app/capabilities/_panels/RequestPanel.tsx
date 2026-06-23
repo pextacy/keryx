@@ -86,7 +86,7 @@ export function RequestPanel() {
             <input
               value={payee}
               onChange={(e) => setPayee(e.target.value)}
-              className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
             />
           </Field>
           <div className="mt-2">
@@ -95,7 +95,7 @@ export function RequestPanel() {
                 value={payers}
                 onChange={(e) => setPayers(e.target.value)}
                 rows={3}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+                className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               />
             </Field>
           </div>
@@ -104,7 +104,7 @@ export function RequestPanel() {
               <input
                 value={total}
                 onChange={(e) => setTotal(e.target.value)}
-                className="w-28 rounded border border-gray-300 px-2 py-1 font-mono"
+                className="w-28 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               />
             </Field>
           </div>
@@ -112,7 +112,7 @@ export function RequestPanel() {
             type="button"
             onClick={() => void create()}
             disabled={busy}
-            className="mt-4 rounded bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="mt-4 rounded bg-primary-fixed-dim px-4 py-2 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
           >
             {busy ? "Creating…" : "Create request"}
           </button>
@@ -124,7 +124,7 @@ export function RequestPanel() {
                   value={lookupId}
                   onChange={(e) => setLookupId(e.target.value)}
                   placeholder="req-1"
-                  className="w-28 rounded border border-gray-300 px-2 py-1 font-mono text-sm"
+                  className="w-28 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-sm"
                 />
                 <button
                   type="button"
@@ -141,12 +141,12 @@ export function RequestPanel() {
         <>
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-1">
-              <span className="font-mono text-gray-500">{req.id}</span>
+              <span className="font-mono text-on-surface-variant">{req.id}</span>
               <Copy text={req.id} label="share" />
             </span>
             <span
               className={`rounded px-2 py-0.5 text-xs font-medium ${
-                settled ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                settled ? "bg-secondary-fixed-dim/10 text-secondary-fixed-dim" : "bg-error-container/20 text-error"
               }`}
             >
               {req.status}
@@ -154,13 +154,13 @@ export function RequestPanel() {
           </div>
 
           <div className="mt-2">
-            <div className="flex justify-between text-xs text-gray-500">
+            <div className="flex justify-between text-xs text-on-surface-variant">
               <span>collected {req.collected}</span>
               <span>of {req.total} USDC</span>
             </div>
-            <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-gray-100">
+            <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-white/5">
               <div
-                className="h-full rounded bg-green-500"
+                className="h-full rounded bg-secondary-fixed-dim"
                 style={{ width: `${Math.min(100, pct)}%` }}
               />
             </div>
@@ -169,22 +169,22 @@ export function RequestPanel() {
           <ul className="mt-4 space-y-2 text-sm">
             {req.shares?.map((s) => (
               <li key={s.payer} className="flex items-center justify-between gap-2 font-mono text-xs">
-                <span className="truncate text-gray-600" title={s.payer}>
+                <span className="truncate text-on-surface-variant" title={s.payer}>
                   {s.payer.slice(0, 12)}…
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="text-green-700">{s.amount}</span>
+                  <span className="text-secondary-fixed-dim">{s.amount}</span>
                   {s.paid ? (
                     s.tx_hash ? (
                       <TxLink hash={s.tx_hash} prefix="paid" />
                     ) : (
-                      <span className="text-green-600">paid ✓</span>
+                      <span className="text-secondary-fixed-dim">paid ✓</span>
                     )
                   ) : (
                     <button
                       type="button"
                       onClick={() => void fulfil(s.payer)}
-                      className="rounded border border-gray-300 px-2 py-0.5 text-gray-700 hover:bg-gray-50"
+                      className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-0.5 text-on-surface hover:bg-white/5"
                     >
                       Fulfil
                     </button>

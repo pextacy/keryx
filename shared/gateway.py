@@ -10,13 +10,21 @@ from a chain-abstracted pool.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from decimal import ROUND_DOWN, Decimal
 
 _UNIT = Decimal("0.000001")
 
-# Source chains a deposit can originate from (arc-multichain-wallet's SupportedChain set).
-SUPPORTED_CHAINS = ("arcTestnet", "avalancheFuji", "baseSepolia")
+# Source chains a deposit can originate from (arc-multichain-wallet's SupportedChain
+# set). Testnet default; override per network via KERYX_GATEWAY_SOURCE_CHAINS
+# (comma-separated SDK chain ids) — e.g. the mainnet equivalents on KERYX_NETWORK=mainnet.
+_DEFAULT_SOURCE_CHAINS = ("arcTestnet", "avalancheFuji", "baseSepolia")
+SUPPORTED_CHAINS: tuple[str, ...] = (
+    tuple(c.strip() for c in os.environ["KERYX_GATEWAY_SOURCE_CHAINS"].split(",") if c.strip())
+    if os.environ.get("KERYX_GATEWAY_SOURCE_CHAINS", "").strip()
+    else _DEFAULT_SOURCE_CHAINS
+)
 
 
 class GatewayError(Exception):

@@ -20,7 +20,7 @@ export function Copy({ text, label }: { text: string; label?: string }) {
       type="button"
       onClick={copy}
       title="Copy"
-      className="text-xs text-gray-400 hover:text-gray-700"
+      className="font-mono-data text-xs text-on-surface-variant transition-colors hover:text-primary-fixed-dim"
     >
       {done ? "✓" : (label ?? "⧉")}
     </button>

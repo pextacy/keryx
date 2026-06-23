@@ -79,7 +79,7 @@ export function CreditsPanel() {
         <input
           value={wallet}
           onChange={(e) => setWallet(e.target.value)}
-          className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+          className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
         />
       </Field>
 
@@ -88,7 +88,7 @@ export function CreditsPanel() {
           <select
             value={tier}
             onChange={(e) => setTier(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            className="rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 text-sm"
           >
             <option value="">custom</option>
             {tiers.map((t) => (
@@ -104,7 +104,7 @@ export function CreditsPanel() {
             <input
               value={topup}
               onChange={(e) => setTopup(e.target.value)}
-              className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+              className="w-24 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
             />
           </Field>
         )}
@@ -112,7 +112,7 @@ export function CreditsPanel() {
           type="button"
           onClick={() => void doTopup()}
           disabled={busy}
-          className="mb-1 rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          className="mb-1 rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
         >
           {busy ? "…" : "Top up"}
         </button>
@@ -128,8 +128,8 @@ export function CreditsPanel() {
       {acct && (
         <>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-2xl font-semibold text-green-700">{acct.balance}</span>
-            <span className="text-sm text-gray-500">credits (USDC)</span>
+            <span className="text-2xl font-semibold text-secondary-fixed-dim">{acct.balance}</span>
+            <span className="text-sm text-on-surface-variant">credits (USDC)</span>
           </div>
 
           <div className="mt-3 flex items-end gap-2">
@@ -137,14 +137,14 @@ export function CreditsPanel() {
               <input
                 value={spend}
                 onChange={(e) => setSpend(e.target.value)}
-                className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+                className="w-24 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               />
             </Field>
             <Field label="Reason">
               <input
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-32 rounded border border-gray-300 px-2 py-1 text-sm"
+                className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 text-sm"
               />
             </Field>
             <button
@@ -165,7 +165,7 @@ export function CreditsPanel() {
                   <li key={i} className="flex items-center justify-between gap-2 font-mono">
                     <span
                       className={
-                        e.kind === "topup" ? "text-green-700" : "text-gray-600"
+                        e.kind === "topup" ? "text-secondary-fixed-dim" : "text-on-surface-variant"
                       }
                     >
                       {e.kind === "topup" ? "+" : "−"}
@@ -174,7 +174,7 @@ export function CreditsPanel() {
                     {e.tx_hash ? (
                       <TxLink hash={e.tx_hash} prefix="tx" />
                     ) : (
-                      <span className="text-gray-400">draw</span>
+                      <span className="text-outline">draw</span>
                     )}
                   </li>
                 ))}

@@ -16,7 +16,7 @@ export function TxLink({
 }) {
   return (
     <span className="inline-flex items-center gap-1">
-      <a href={ARC_EXPLORER_TX + hash} target="_blank" className="text-blue-600 underline">
+      <a href={ARC_EXPLORER_TX + hash} target="_blank" className="text-primary-fixed-dim underline">
         {chars > 0 ? `${prefix} ${hash.slice(0, chars)}…`.trim() : prefix || "tx"}
       </a>
       <Copy text={hash} />

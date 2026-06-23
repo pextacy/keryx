@@ -34,7 +34,7 @@ export function OnchainPanel() {
 
   const disabledNote = (enabled: boolean) =>
     !enabled && (
-      <p className="text-xs text-amber-700">opt-in (disabled) — set the agent&apos;s KERYX_*_ENABLED</p>
+      <p className="text-xs text-error">opt-in (disabled) — set the agent&apos;s KERYX_*_ENABLED</p>
     );
 
   return (
@@ -60,7 +60,7 @@ export function OnchainPanel() {
             <input
               value={jobId}
               onChange={(e) => setJobId(e.target.value)}
-              className="w-24 rounded border border-gray-300 px-2 py-1 font-mono"
+              className="w-24 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
             />
             <button
               type="button"
@@ -93,7 +93,7 @@ export function OnchainPanel() {
               value={hash}
               onChange={(e) => setHash(e.target.value)}
               placeholder="0x…"
-              className="flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
             />
             <button
               type="button"
@@ -114,7 +114,7 @@ export function OnchainPanel() {
       {validation && (
         <div className="mt-1 font-mono text-xs">
           {validation.enabled && validation.found ? (
-            <span className={validation.passed ? "text-green-700" : "text-red-700"}>
+            <span className={validation.passed ? "text-secondary-fixed-dim" : "text-error"}>
               {validation.passed ? "passed" : "failed"} ({validation.response}) · {validation.tag}
             </span>
           ) : (
@@ -129,13 +129,13 @@ export function OnchainPanel() {
             <input
               value={repAgent}
               onChange={(e) => setRepAgent(e.target.value)}
-              className="w-20 rounded border border-gray-300 px-2 py-1 font-mono"
+              className="w-20 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               placeholder="agent_id"
             />
             <input
               value={repG}
               onChange={(e) => setRepG(e.target.value)}
-              className="w-20 rounded border border-gray-300 px-2 py-1 font-mono"
+              className="w-20 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               placeholder="g (0-1)"
             />
             <button
@@ -164,14 +164,15 @@ export function OnchainPanel() {
               <a
                 href={ARC_EXPLORER_TX + rep.tx_hash}
                 target="_blank"
-                className="text-blue-600 underline"
+                rel="noopener noreferrer"
+                className="text-primary-fixed-dim underline"
               >
                 recorded · tx {rep.tx_hash.slice(0, 14)}…
               </a>
               <Copy text={rep.tx_hash} />
             </span>
           ) : (
-            <span className="text-gray-500">{rep.reason ?? "not recorded"}</span>
+            <span className="text-on-surface-variant">{rep.reason ?? "not recorded"}</span>
           )}
         </div>
       )}

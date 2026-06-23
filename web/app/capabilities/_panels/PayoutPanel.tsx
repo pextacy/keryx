@@ -55,7 +55,7 @@ export function PayoutPanel() {
         <input
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="w-32 rounded border border-gray-300 px-2 py-1 font-mono"
+          className="w-32 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
         />
       </Field>
 
@@ -65,19 +65,19 @@ export function PayoutPanel() {
             <input
               value={r.wallet}
               onChange={(e) => setRow(i, { wallet: e.target.value })}
-              className="flex-1 rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+              className="flex-1 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               placeholder="0x wallet"
             />
             <input
               value={r.share}
               onChange={(e) => setRow(i, { share: e.target.value })}
-              className="w-20 rounded border border-gray-300 px-2 py-1 font-mono"
+              className="w-20 rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono"
               placeholder="share"
             />
             <button
               type="button"
               onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
-              className="px-2 text-gray-400 hover:text-red-600"
+              className="px-2 text-outline hover:text-error"
             >
               ×
             </button>
@@ -86,7 +86,7 @@ export function PayoutPanel() {
         <button
           type="button"
           onClick={() => setRows((prev) => [...prev, { wallet: "", share: "1" }])}
-          className="text-sm text-blue-600"
+          className="text-sm text-primary-fixed-dim"
         >
           + contributor
         </button>
@@ -96,7 +96,7 @@ export function PayoutPanel() {
         type="button"
         onClick={submit}
         disabled={busy}
-        className="mt-4 rounded bg-black px-4 py-2 text-white disabled:opacity-50"
+        className="mt-4 rounded bg-primary-fixed-dim px-4 py-2 text-on-primary-fixed font-bold disabled:opacity-50"
       >
         {busy ? "Settling…" : "Split & settle"}
       </button>
@@ -109,12 +109,12 @@ export function PayoutPanel() {
             <li key={r.wallet} className="flex items-center justify-between font-mono">
               <span className="truncate">{r.wallet.slice(0, 12)}… · share {r.share}</span>
               <span className="flex items-center gap-2">
-                <span className="text-green-700">{r.amount}</span>
+                <span className="text-secondary-fixed-dim">{r.amount}</span>
                 {r.tx_hash && <TxLink hash={r.tx_hash} prefix="tx" chars={0} />}
               </span>
             </li>
           ))}
-          <li className="mt-1 flex justify-between border-t pt-1 font-mono text-green-700">
+          <li className="mt-1 flex justify-between border-t pt-1 font-mono text-secondary-fixed-dim">
             <span>total settled</span>
             <span>{res.total_settled} USDC</span>
           </li>

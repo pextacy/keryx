@@ -28,8 +28,8 @@ export function CheatsheetPanel() {
         {ROWS.map((r) => (
           <li key={r.endpoint} className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-medium">{r.name}</span>
-            <code className="rounded bg-gray-100 px-1 text-xs text-gray-600">{r.endpoint}</code>
-            <span className="text-gray-500">— {r.what}</span>
+            <code className="rounded bg-white/5 px-1 text-xs text-on-surface-variant">{r.endpoint}</code>
+            <span className="text-on-surface-variant">— {r.what}</span>
           </li>
         ))}
       </ul>

@@ -36,6 +36,10 @@ def split_amount(total: Decimal, weights: list[Decimal]) -> list[Decimal]:
     """
     if not weights or any(w <= 0 for w in weights):
         raise ValueError("weights must be non-empty and all positive")
+    if total < 0:
+        # A negative total breaks the largest-remainder invariant (floors toward -inf,
+        # leftover loop never runs) and the dust-free guarantee. Callers split income.
+        raise ValueError("total must be non-negative")
     total_q = total.quantize(_Q, rounding=ROUND_DOWN)
     units = int((total_q / _Q).to_integral_value())  # total in micro-USDC
     wsum = sum(weights, Decimal(0))

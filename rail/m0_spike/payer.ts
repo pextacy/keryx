@@ -14,6 +14,7 @@
  */
 import { createServer } from "node:http";
 import { GatewayClient } from "@circle-fin/x402-batching/client";
+import { GATEWAY_CLIENT_CHAIN, KERYX_NETWORK } from "./network.ts";
 
 const SELLER_URL = process.env.SELLER_URL ?? "http://localhost:3402/cite";
 const PORT = Number(process.env.PAYER_PORT ?? 3403);
@@ -26,7 +27,7 @@ if (!buyerKey) {
   process.exit(1);
 }
 
-const gateway = new GatewayClient({ chain: "arcTestnet", privateKey: buyerKey });
+const gateway = new GatewayClient({ chain: GATEWAY_CLIENT_CHAIN, privateKey: buyerKey });
 
 interface Intent {
   source_id: string;
@@ -95,5 +96,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[payer] rail bridge on http://localhost:${PORT}/settle -> seller ${SELLER_URL}`);
+  console.log(`[payer] network=${KERYX_NETWORK} rail bridge on http://localhost:${PORT}/settle -> seller ${SELLER_URL}`);
 });

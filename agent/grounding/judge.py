@@ -2,22 +2,25 @@
 
 prd.md §6: an LLM judge returns ``supported | partial | unsupported`` per claim with a
 rationale. Behind a ``Judge`` protocol so we can run offline (``HeuristicJudge``) in
-tests/CI and swap in ``AnthropicJudge`` when an API key is present — same interface.
+tests/CI and swap in ``GeminiJudge`` when an API key is present — same interface.
 """
 
 from __future__ import annotations
 
 import enum
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
 from agent.grounding.embeddings import _tokenize
+from agent.llm import call_with_retry
 
 if TYPE_CHECKING:
-    from anthropic import Anthropic
+    from google.genai import Client as GeminiClient
 
 log = logging.getLogger("keryx.grounding.judge")
 
@@ -133,29 +136,36 @@ def _overall(per_claim: list[tuple[str, Verdict]]) -> Verdict:
     return Verdict.PARTIAL if avg >= 0.25 else Verdict.UNSUPPORTED
 
 
-class AnthropicJudge:
-    """Claude-backed grounding judge — the production moat (prd.md §6).
+class GeminiJudge:
+    """Gemini-backed grounding judge — the production moat (prd.md §6).
 
-    Asks Claude for per-claim ``supported|partial|unsupported`` verdicts via structured
-    outputs, then folds them into the same ``JudgeResult`` the heuristic judge returns,
-    so the scorer is agnostic to which judge ran. Resilient by design: any API/parse
-    failure degrades to ``fallback`` (the offline heuristic) rather than breaking the
-    citation loop, and the rationale records which judge actually decided.
+    Asks Gemini for per-claim ``supported|partial|unsupported`` verdicts via JSON
+    structured outputs (``response_schema``), then folds them into the same
+    ``JudgeResult`` the heuristic judge returns, so the scorer is agnostic to which
+    judge ran. Transient errors (429/5xx) are retried with bounded backoff; any remaining
+    API/parse failure degrades to ``fallback`` (the offline heuristic) rather than breaking
+    the citation loop, and the rationale records which judge decided.
     """
 
     def __init__(
         self,
-        client: Anthropic,
+        client: GeminiClient,
         *,
         model: str,
-        effort: str = "low",
         max_tokens: int = 4096,
+        max_retries: int = 0,
+        backoff_base: float = 0.5,
+        backoff_cap: float = 8.0,
+        sleep: Callable[[float], None] = time.sleep,
         fallback: Judge | None = None,
     ) -> None:
         self._client = client
         self.model = model
-        self.effort = effort
         self.max_tokens = max_tokens
+        self.max_retries = max_retries
+        self.backoff_base = backoff_base
+        self.backoff_cap = backoff_cap
+        self._sleep = sleep
         self.fallback: Judge = fallback or HeuristicJudge()
 
     def judge(self, answer: str, source_text: str) -> JudgeResult:
@@ -163,32 +173,38 @@ class AnthropicJudge:
             return JudgeResult(Verdict.UNSUPPORTED, "empty answer or source")
         client: Any = self._client  # SDK call is an untyped boundary; guarded by except
         try:
-            resp = client.messages.parse(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                thinking={"type": "adaptive"},
-                output_config={"effort": self.effort},
-                system=_JUDGE_SYSTEM,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": (
-                            f"ANSWER:\n{answer}\n\n"
-                            f"SOURCE:\n{source_text}\n\n"
-                            "Return the per-claim verdicts and a one-sentence rationale."
-                        ),
-                    }
-                ],
-                output_format=_JudgeOutput,
+            from google.genai import types
+
+            config = types.GenerateContentConfig(
+                system_instruction=_JUDGE_SYSTEM,
+                max_output_tokens=self.max_tokens,
+                temperature=0.0,
+                response_mime_type="application/json",
+                response_schema=_JudgeOutput,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
             )
-            parsed = resp.parsed_output
+            contents = (
+                f"ANSWER:\n{answer}\n\n"
+                f"SOURCE:\n{source_text}\n\n"
+                "Return the per-claim verdicts and a one-sentence rationale."
+            )
+            resp = call_with_retry(
+                lambda: client.models.generate_content(
+                    model=self.model, contents=contents, config=config
+                ),
+                max_retries=self.max_retries,
+                backoff_base=self.backoff_base,
+                backoff_cap=self.backoff_cap,
+                sleep=self._sleep,
+            )
+            parsed = resp.parsed
         except Exception as exc:  # noqa: BLE001 — any failure degrades to the heuristic
-            log.warning("AnthropicJudge fell back to heuristic: %s", exc)
+            log.warning("GeminiJudge fell back to heuristic: %s", exc)
             jr = self.fallback.judge(answer, source_text)
             return JudgeResult(jr.verdict, f"[fallback:heuristic] {jr.rationale}", jr.per_claim)
 
         if parsed is None or not parsed.claims:
             return JudgeResult(Verdict.UNSUPPORTED, "judge returned no claims")
         per_claim = [(c.claim, c.verdict) for c in parsed.claims]
-        rationale = f"[claude:{self.model}] {parsed.rationale}"
+        rationale = f"[gemini:{self.model}] {parsed.rationale}"
         return JudgeResult(_overall(per_claim), rationale, tuple(per_claim))

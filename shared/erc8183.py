@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import enum
 import logging
+import threading
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -73,11 +74,13 @@ def _to_atomic(amount: Decimal) -> int:
 
 
 def _to_bytes32(value: str | bytes) -> bytes:
-    raw = (
-        bytes.fromhex(value[2:] if value.startswith("0x") else value)
-        if isinstance(value, str)
-        else value
-    )
+    if isinstance(value, str):
+        try:
+            raw = bytes.fromhex(value[2:] if value.startswith("0x") else value)
+        except ValueError as exc:
+            raise ValueError(f"invalid hash hex: {value!r}") from exc
+    else:
+        raw = value
     if len(raw) > 32:
         raise ValueError("value must be <=32 bytes")
     return raw.ljust(32, b"\x00")
@@ -102,6 +105,8 @@ class Erc8183Client:
         self.chain_id = chain_id
         self.gas_limit = gas_limit
         self._account = Account.from_key(private_key) if private_key else None
+        # Serialise writes so concurrent txs don't reuse the same "pending" nonce.
+        self._send_lock = threading.Lock()
 
     @property
     def can_write(self) -> bool:
@@ -152,20 +157,21 @@ class Erc8183Client:
         if self._account is None:
             raise RuntimeError("ERC-8183 write requires a signing key")
         sender = self._account.address
-        nonce = int(self._rpc.call("eth_getTransactionCount", [sender, "pending"]), 16)
-        gas_price = int(self._rpc.call("eth_gasPrice", []), 16)
-        tx = {
-            "to": to_checksum_address(to),
-            "data": _calldata(signature, arg_types, args),
-            "value": 0,
-            "nonce": nonce,
-            "gas": self.gas_limit,
-            "gasPrice": gas_price,
-            "chainId": self.chain_id,
-        }
-        signed = self._account.sign_transaction(tx)
-        raw = getattr(signed, "raw_transaction", None) or signed.rawTransaction
-        return str(self._rpc.call("eth_sendRawTransaction", ["0x" + raw.hex()]))
+        with self._send_lock:
+            nonce = int(self._rpc.call("eth_getTransactionCount", [sender, "pending"]), 16)
+            gas_price = int(self._rpc.call("eth_gasPrice", []), 16)
+            tx = {
+                "to": to_checksum_address(to),
+                "data": _calldata(signature, arg_types, args),
+                "value": 0,
+                "nonce": nonce,
+                "gas": self.gas_limit,
+                "gasPrice": gas_price,
+                "chainId": self.chain_id,
+            }
+            signed = self._account.sign_transaction(tx)
+            raw = getattr(signed, "raw_transaction", None) or signed.rawTransaction
+            return str(self._rpc.call("eth_sendRawTransaction", ["0x" + raw.hex()]))
 
     def create_job(
         self,

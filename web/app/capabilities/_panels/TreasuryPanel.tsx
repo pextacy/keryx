@@ -61,29 +61,29 @@ export function TreasuryPanel() {
       {data && (
         <>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-2xl font-semibold text-green-700">{data.balance}</span>
-            <span className="text-sm text-gray-500">USDC in treasury</span>
+            <span className="text-2xl font-semibold text-secondary-fixed-dim">{data.balance}</span>
+            <span className="text-sm text-on-surface-variant">USDC in treasury</span>
             {data.sweepable && (
-              <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+              <span className="rounded bg-error-container/20 px-2 py-0.5 text-xs font-medium text-error">
                 sweepable
               </span>
             )}
           </div>
-          <div className="mt-1 text-xs text-gray-500">sweep threshold {data.threshold} USDC</div>
+          <div className="mt-1 text-xs text-on-surface-variant">sweep threshold {data.threshold} USDC</div>
 
           <div className="mt-3 flex items-end gap-2">
             <Field label="Sweep to">
               <input
                 value={dest}
                 onChange={(e) => setDest(e.target.value)}
-                className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-xs"
+                className="w-full rounded border border-outline-variant/40 bg-surface-container-lowest text-on-surface placeholder:text-outline px-2 py-1 font-mono text-xs"
               />
             </Field>
             <button
               type="button"
               onClick={() => void sweep()}
               disabled={busy || Number(data.balance) <= 0}
-              className="mb-1 rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="mb-1 rounded bg-primary-fixed-dim px-3 py-1.5 text-sm text-on-primary-fixed font-bold disabled:opacity-50"
             >
               {busy ? "…" : "Sweep"}
             </button>
@@ -96,7 +96,7 @@ export function TreasuryPanel() {
                 .reverse()
                 .map((f, i) => (
                   <li key={i} className="flex items-center justify-between gap-2 font-mono">
-                    <span className={f.kind === "deposit" ? "text-green-700" : "text-blue-700"}>
+                    <span className={f.kind === "deposit" ? "text-secondary-fixed-dim" : "text-primary-fixed-dim"}>
                       {f.kind === "deposit" ? "+" : "→"}
                       {f.amount} · {f.kind}
                     </span>
@@ -105,7 +105,7 @@ export function TreasuryPanel() {
                 ))}
             </ul>
           ) : (
-            <p className="mt-4 text-xs text-gray-400">
+            <p className="mt-4 text-xs text-outline">
               no flows yet — top up prepaid credits to fund the treasury
             </p>
           )}
