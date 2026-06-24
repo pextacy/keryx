@@ -18,14 +18,22 @@ function Badge({ label, on }: { label: string; on: boolean }) {
   );
 }
 
+type Metrics = { total_settled_usdc: string; citations_settled: number };
+
 export function StatusHeader() {
   const [s, setS] = useState<StatusResponse | null>(null);
+  const [m, setM] = useState<Metrics | null>(null);
   const [down, setDown] = useState(false);
 
   useEffect(() => {
     getJson<StatusResponse>("/api/status")
       .then(setS)
       .catch(() => setDown(true));
+    // DB-backed citation totals persist across backend restarts, unlike the
+    // in-memory traction book — so the headline isn't zero after a redeploy.
+    getJson<Metrics>("/api/metrics")
+      .then(setM)
+      .catch(() => {});
   }, []);
 
   if (down) {
@@ -41,10 +49,17 @@ export function StatusHeader() {
   }
   if (!s) return null;
 
+  // Persistent citation tolls (DB) + live primitive settlements (in-memory) so the
+  // headline reflects everything that has cleared and survives a backend restart.
+  const settledUsdc = (
+    parseFloat(m?.total_settled_usdc ?? "0") + parseFloat(s.traction.total_volume_usdc ?? "0")
+  ).toFixed(6);
+  const settledCount = (m?.citations_settled ?? 0) + (s.traction.total_payments ?? 0);
+
   return (
     <div className="glass-card mt-4 flex flex-wrap items-center gap-2 p-3 text-sm">
-      <span className="font-mono-data text-secondary-fixed-dim">{s.traction.total_volume_usdc} USDC</span>
-      <span className="text-on-surface-variant">settled · {s.traction.total_payments} payments</span>
+      <span className="font-mono-data text-secondary-fixed-dim">{settledUsdc} USDC</span>
+      <span className="text-on-surface-variant">settled · {settledCount} payments</span>
       <span className="mx-1 text-outline-variant">|</span>
       <Badge label={`rail: ${s.rail}`} on={s.rail !== "MockRail"} />
       <Badge label={s.embedder === "VoyageEmbedder" ? "dense embeddings" : "lexical"} on={s.embedder === "VoyageEmbedder"} />
