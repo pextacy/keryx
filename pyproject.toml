@@ -28,6 +28,11 @@ dev = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
+# Vercel FastAPI deploy: this repo has two FastAPI apps (agent + rail); the agent
+# is the public backend (the web's /api/* routes proxy to it). Mock rail by default.
+[tool.vercel]
+entrypoint = "agent.main:app"
+
 [tool.setuptools]
 # Top-level packages; web/ is a separate Node app, vendor/ is reference only.
 packages = ["shared", "rail", "rail.cite", "agent", "agent.grounding", "agent.attestation", "registry"]
