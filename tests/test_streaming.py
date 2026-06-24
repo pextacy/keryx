@@ -25,9 +25,23 @@ def test_sub_micro_fraction_carries_no_dust() -> None:
     # 0.0000015/s: tick 1 -> 0.0000015 accrued -> bill 0.000001 (carry 0.0000005).
     book.open(payer=PAYER, payee=PAYEE, rate=Decimal("0.0000015"))
     first = book.tick("stream:1", Decimal(1))
+    book.commit("stream:1", first)  # rail cleared -> advance settled
     second = book.tick("stream:1", Decimal(1))  # accrued 0.000003 -> bill 0.000002
     assert first == Decimal("0.000001") and second == Decimal("0.000002")
     assert first + second == Decimal("0.000003")  # exact, no dust
+
+
+def test_unsettled_tick_is_rebilled_not_lost() -> None:
+    # The core bug fix: tick() reports what's owed but does NOT advance `settled`. If the
+    # caller's rail settlement fails (no commit), the same amount is re-billed next time
+    # instead of being silently marked paid and lost to the payee.
+    book = StreamBook()
+    book.open(payer=PAYER, payee=PAYEE, rate=Decimal("0.001"))
+    due = book.tick("stream:1", Decimal(2))  # 0.002 owed
+    again = book.tick("stream:1", Decimal(0))  # no new flow, not committed -> still owed
+    assert due == Decimal("0.002") and again == Decimal("0.002")
+    book.commit("stream:1", again)  # now it clears
+    assert book.tick("stream:1", Decimal(0)) == Decimal(0)  # nothing left owed
 
 
 def test_paused_stream_accrues_nothing() -> None:
@@ -42,9 +56,10 @@ def test_paused_stream_accrues_nothing() -> None:
 def test_close_returns_final_and_blocks_further_ops() -> None:
     book = StreamBook()
     book.open(payer=PAYER, payee=PAYEE, rate=Decimal("0.001"))
-    book.tick("stream:1", Decimal(1))
+    due1 = book.tick("stream:1", Decimal(1))
+    book.commit("stream:1", due1)  # rail cleared -> advance settled
     _s, due = book.close("stream:1")
-    assert due == Decimal(0)  # nothing left after the tick
+    assert due == Decimal(0)  # nothing left after the committed tick
     with pytest.raises(StreamClosed):
         book.tick("stream:1", Decimal(1))
 

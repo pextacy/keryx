@@ -57,6 +57,7 @@ class GroundingScorer:
         Flat ``citation_toll_min`` by default; if ``scale_amount_by_g`` is set, scale
         linearly across the [min, max] toll band by g (never below floor).
         """
+        g = max(0.0, min(1.0, g))  # clamp so the toll never escapes the [min, max] band
         lo, hi = self.cfg.citation_toll_min, self.cfg.citation_toll_max
         amount = lo + (hi - lo) * Decimal(str(g)) if self.cfg.scale_amount_by_g else lo
         amount = max(amount, self.cfg.usdc_floor)
@@ -66,7 +67,9 @@ class GroundingScorer:
         sim = similarity(answer, source_text, self.embedder)
         jr = self.judge.judge(answer, source_text)
         g = self._w_sim * sim + self._w_judge * jr.score
-        g = max(0.0, min(1.0, g))
+        # Round once, then gate and record on the SAME value — so a displayed g can
+        # never read >= T while the source was left uncited (or vice versa).
+        g = round(max(0.0, min(1.0, g)), 4)
         cited = g >= self.cfg.grounding_threshold
         amount = self.amount_for(g) if cited else Decimal(0)
         gate = ">=" if cited else "<"
@@ -78,7 +81,7 @@ class GroundingScorer:
             source_id=source_id,
             similarity=sim,
             judge=jr,
-            g=round(g, 4),
+            g=g,
             cited=cited,
             amount=amount,
             rationale=rationale,

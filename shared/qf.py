@@ -10,7 +10,6 @@ Pure and offline; the caller settles each project's match through the rail.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -24,9 +23,15 @@ class Project:
 
 
 def match_weight(contributions: list[Decimal]) -> Decimal:
-    """Quadratic-funding weight ``(Σ √c)²`` over positive contributions."""
-    root_sum = sum(math.sqrt(float(c)) for c in contributions if c > 0)
-    return Decimal(str(root_sum * root_sum))
+    """Quadratic-funding weight ``(Σ √c)²`` over positive contributions.
+
+    Square roots are taken in ``Decimal`` (28-digit context), not ``float``, so the
+    weight is precise — a relative weight into a pool-conserving split, but the extra
+    precision avoids float artefacts (e.g. ``√2·√2 = 2.0000000000000004``) flipping a
+    tie-break by a micro-USDC.
+    """
+    root_sum = sum((c.sqrt() for c in contributions if c > 0), Decimal(0))
+    return root_sum * root_sum
 
 
 def quadratic_match(pool: Decimal, projects: list[Project]) -> list[tuple[Project, Decimal]]:

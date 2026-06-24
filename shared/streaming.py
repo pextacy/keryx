@@ -58,16 +58,28 @@ class StreamBook:
         return self._streams.get(stream_id)
 
     def _billable(self, s: Stream) -> Decimal:
-        """Whole micro-USDC now owed beyond what's settled (carries the fraction)."""
+        """Whole micro-USDC now owed beyond what's settled (carries the fraction).
+
+        Pure — does NOT advance ``settled``. The caller settles ``due`` through the rail
+        and only then calls :meth:`commit`, so a failed settlement is re-billed next time
+        instead of being silently marked paid and lost.
+        """
         micro = s.accrued.quantize(_Q, rounding=ROUND_DOWN)
-        due = micro - s.settled
-        s.settled = micro
-        return due
+        return micro - s.settled
+
+    def commit(self, stream_id: str, amount: Decimal) -> None:
+        """Advance ``settled`` by ``amount`` once the rail confirms the payment cleared."""
+        s = self._streams.get(stream_id)  # works on closed streams (final tick commits)
+        if s is None:
+            raise KeyError(stream_id)
+        if amount > 0:
+            s.settled += amount
 
     def tick(self, stream_id: str, seconds: Decimal) -> Decimal:
         """Accrue ``seconds`` of flow on an OPEN stream; return the newly-billable amount.
 
         A paused stream accrues nothing. Returns 0 when the increment is sub-micro (carried).
+        Does not advance ``settled`` — the caller settles, then calls :meth:`commit`.
         """
         s = self._require(stream_id)
         if s.status is StreamStatus.OPEN and seconds > 0:

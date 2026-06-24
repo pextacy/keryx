@@ -127,7 +127,10 @@ def test_build_erc8183_disabled_by_default() -> None:
 
 
 def test_build_erc8183_enabled_reads_only_without_key() -> None:
-    c = build_erc8183(Settings(erc8183_enabled=True, rpc_url="http://rpc.local"))
+    # agent_private_key="" so the dev .env's signing key can't leak in and flip can_write.
+    c = build_erc8183(
+        Settings(erc8183_enabled=True, rpc_url="http://rpc.local", agent_private_key="")
+    )
     assert isinstance(c, Erc8183Client) and not c.can_write
     c.close()
 

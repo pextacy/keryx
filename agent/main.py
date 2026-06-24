@@ -763,24 +763,27 @@ def resolve_bond(bond_id: str, req: ResolveRequest) -> dict[str, Any]:
     A slash settles the bond amount to the wronged claimant through the active rail —
     reputation as capital at risk, not a self-reported score.
     """
-    try:
-        bond = bonds.resolve(bond_id, passed=req.passed)
-    except KeyError:
-        return {"found": False, "bond_id": bond_id}
-    except BondAlreadyResolved:
-        return {"error": "already_resolved", "bond_id": bond_id}
+    # Hold the book lock across resolve -> slash settlement so two concurrent resolves
+    # can't both pass the not-yet-resolved guard and double-pay the claimant (TOCTOU).
+    with _book_lock:
+        try:
+            bond = bonds.resolve(bond_id, passed=req.passed)
+        except KeyError:
+            return {"found": False, "bond_id": bond_id}
+        except BondAlreadyResolved:
+            return {"error": "already_resolved", "bond_id": bond_id}
 
-    tx_hash: str | None = None
-    if bond.status is BondStatus.SLASHED:
-        intent = CitationIntent(
-            source_id=f"slash:{bond.id}", author_wallet=bond.claimant, amount=bond.amount
-        )
-        receipts = rail.settle([intent])
-        rc = receipts[0] if receipts else None
-        if rc is not None and rc.status is SettlementStatus.SETTLED:
-            tx_hash = rc.tx_hash
-            traction.record("bond", bond.amount)
-    return {**_bond_view(bond), "tx_hash": tx_hash}
+        tx_hash: str | None = None
+        if bond.status is BondStatus.SLASHED:
+            intent = CitationIntent(
+                source_id=f"slash:{bond.id}", author_wallet=bond.claimant, amount=bond.amount
+            )
+            receipts = rail.settle([intent])
+            rc = receipts[0] if receipts else None
+            if rc is not None and rc.status is SettlementStatus.SETTLED:
+                tx_hash = rc.tx_hash
+                traction.record("bond", bond.amount)
+        return {**_bond_view(bond), "tx_hash": tx_hash}
 
 
 class StreamRequest(BaseModel):
@@ -829,20 +832,30 @@ def get_stream(stream_id: str) -> dict[str, Any]:
 def _tick_response(stream_id: str, billed: Decimal) -> dict[str, Any]:
     s = streams.get(stream_id)
     assert s is not None
-    tx_hash = _settle_to(f"stream:{stream_id}:{s.settled}", s.payee, billed, kind="stream")
+    # Settle first; only mark the micro-USDC as billed once the rail confirms it cleared,
+    # so a failed settlement is re-billed next tick instead of being lost.
+    tx_hash: str | None = None
+    if billed > 0:
+        tx_hash = _settle_to(f"stream:{stream_id}:{s.settled}", s.payee, billed, kind="stream")
+        if tx_hash is not None:
+            streams.commit(stream_id, billed)
+            s = streams.get(stream_id) or s
     return {**_stream_view(s), "billed": str(billed), "tx_hash": tx_hash}
 
 
 @app.post("/stream/{stream_id}/tick", tags=["primitives"])
 def tick_stream(stream_id: str, req: TickRequest) -> dict[str, Any]:
     """Bill ``seconds`` of flow and settle the newly-accrued micro-USDC to the payee."""
-    try:
-        billed = streams.tick(stream_id, req.seconds)
-    except KeyError:
-        return {"found": False, "stream_id": stream_id}
-    except StreamClosed:
-        return {"error": "stream_closed", "stream_id": stream_id}
-    return _tick_response(stream_id, billed)
+    # Serialise accrue -> settle -> commit so concurrent ticks can't double-settle the
+    # same accrual window (matches the other two-step money flows).
+    with _book_lock:
+        try:
+            billed = streams.tick(stream_id, req.seconds)
+        except KeyError:
+            return {"found": False, "stream_id": stream_id}
+        except StreamClosed:
+            return {"error": "stream_closed", "stream_id": stream_id}
+        return _tick_response(stream_id, billed)
 
 
 @app.post("/stream/{stream_id}/pause", tags=["primitives"])
@@ -866,13 +879,14 @@ def resume_stream(stream_id: str) -> dict[str, Any]:
 @app.post("/stream/{stream_id}/close", tags=["primitives"])
 def close_stream(stream_id: str) -> dict[str, Any]:
     """Close the stream and settle any final billable micro-USDC."""
-    try:
-        _s, billed = streams.close(stream_id)
-    except KeyError:
-        return {"found": False, "stream_id": stream_id}
-    except StreamClosed:
-        return {"error": "already_closed", "stream_id": stream_id}
-    return _tick_response(stream_id, billed)
+    with _book_lock:
+        try:
+            _s, billed = streams.close(stream_id)
+        except KeyError:
+            return {"found": False, "stream_id": stream_id}
+        except StreamClosed:
+            return {"error": "already_closed", "stream_id": stream_id}
+        return _tick_response(stream_id, billed)
 
 
 class Play(BaseModel):
@@ -1816,24 +1830,27 @@ def checkout_order(oid: str) -> dict[str, Any]:
     order = _orders.get(oid)
     if order is None:
         return {"found": False, "id": oid}
-    try:
-        order = _orders.begin_checkout(oid)
-    except OrderError as exc:
-        return {"error": str(exc), "id": oid}
-    for idx, item in enumerate(order.items):
-        tx_hash = _settle_to(f"order:{oid}:{idx}", item.to, item.amount, kind="order")
-        if tx_hash is not None:
-            item.tx_hash = tx_hash
-            _record_memo(
-                tx_hash,
-                build_memo(
-                    kind="invoice",
-                    ref=f"{oid}#{idx}",
-                    note=item.description,
-                    message_to=item.to,
-                ),
-            )
-    return {"checked_out": True, **_order_view(order)}
+    # Serialise begin_checkout -> settle so two concurrent checkouts can't both pass the
+    # not-yet-checked-out guard and settle every line-item twice (TOCTOU).
+    with _book_lock:
+        try:
+            order = _orders.begin_checkout(oid)
+        except OrderError as exc:
+            return {"error": str(exc), "id": oid}
+        for idx, item in enumerate(order.items):
+            tx_hash = _settle_to(f"order:{oid}:{idx}", item.to, item.amount, kind="order")
+            if tx_hash is not None:
+                item.tx_hash = tx_hash
+                _record_memo(
+                    tx_hash,
+                    build_memo(
+                        kind="invoice",
+                        ref=f"{oid}#{idx}",
+                        note=item.description,
+                        message_to=item.to,
+                    ),
+                )
+        return {"checked_out": True, **_order_view(order)}
 
 
 @app.get("/order/{oid}", tags=["primitives"])
