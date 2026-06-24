@@ -1,0 +1,18 @@
+# Keep the backend image small + safe. Heavy/irrelevant dirs and all secrets.
+.git
+.venv
+**/node_modules
+web
+contracts
+vendor
+docs
+tests
+*.log
+.coverage
+.mypy_cache
+.pytest_cache
+.ruff_cache
+**/.env
+**/.env.*
+!**/.env.example
+.gstack

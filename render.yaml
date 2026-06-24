@@ -1,0 +1,26 @@
+# Render Blueprint — one-click public backend for Keryx (real Arc-testnet settlement).
+# Render → New → Blueprint → pick this repo. Then fill the secret values it prompts for.
+# The web frontend on Vercel sets AGENT_URL to this service's URL.
+services:
+  - type: web
+    name: keryx-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: KERYX_RAIL
+        value: http
+      - key: KERYX_NETWORK
+        value: testnet
+      # --- secrets (Render prompts you to paste these; never committed) ---
+      - key: BUYER_PRIVATE_KEY        # funded Arc-testnet wallet (rail/m0_spike/.env)
+        sync: false
+      - key: AUTHOR_ADDRESS           # payee wallet (rail/m0_spike/.env)
+        sync: false
+      - key: KERYX_GEMINI_API_KEY     # smart answers (optional)
+        sync: false
+      - key: KERYX_VOYAGE_API_KEY     # better embeddings (optional)
+        sync: false
+      - key: KERYX_DATABASE_URL       # Neon — persistent ledger (optional)
+        sync: false
