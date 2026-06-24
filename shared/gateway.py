@@ -17,8 +17,8 @@ from decimal import ROUND_DOWN, Decimal
 _UNIT = Decimal("0.000001")
 
 # Source chains a deposit can originate from (arc-multichain-wallet's SupportedChain
-# set). Testnet default; override per network via KERYX_GATEWAY_SOURCE_CHAINS
-# (comma-separated SDK chain ids) — e.g. the mainnet equivalents on KERYX_NETWORK=mainnet.
+# set). Testnet default; override via KERYX_GATEWAY_SOURCE_CHAINS (comma-separated
+# SDK chain ids).
 _DEFAULT_SOURCE_CHAINS = ("arcTestnet", "avalancheFuji", "baseSepolia")
 SUPPORTED_CHAINS: tuple[str, ...] = (
     tuple(c.strip() for c in os.environ["KERYX_GATEWAY_SOURCE_CHAINS"].split(",") if c.strip())

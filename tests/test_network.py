@@ -1,5 +1,5 @@
 """Network registry + Settings resolution — testnet preset, env override, and the
-mainnet fail-loud guard. No network I/O."""
+testnet-only guard. No network I/O."""
 
 from __future__ import annotations
 
@@ -27,32 +27,19 @@ def test_single_constant_can_be_overridden_without_changing_network() -> None:
     assert s.arc_chain_id == 0x4CEF52  # other constants still from the preset
 
 
-def test_mainnet_without_verified_constants_fails_loud() -> None:
+def test_testnet_is_the_only_network() -> None:
+    assert set(NETWORKS) == {"testnet"}
+
+
+@pytest.mark.parametrize("name", ["mainnet", "devnet", "Arc"])
+def test_unknown_network_rejected(name: str) -> None:
     with pytest.raises(ValidationError):
-        Settings(network="mainnet")
+        Settings(network=name)
 
 
-def test_mainnet_with_supplied_constants_constructs() -> None:
-    supplied = {f: ("0x" + f[:2]) for f in CHAIN_FIELDS}
-    supplied["arc_chain_id"] = 12345  # type: ignore[assignment]
-    supplied["caip2_network"] = "eip155:12345"
-    s = Settings(network="mainnet", **supplied)  # type: ignore[arg-type]
-    assert s.network == "mainnet"
-    assert s.arc_chain_id == 12345
-    assert s.caip2_network == "eip155:12345"
-
-
-def test_unknown_network_rejected() -> None:
-    with pytest.raises(ValidationError):
-        Settings(network="devnet")
-
-
-def test_resolve_lists_every_missing_field_for_an_empty_preset() -> None:
-    with pytest.raises(ValueError) as exc:
+def test_resolve_rejects_unknown_network() -> None:
+    with pytest.raises(ValueError):
         resolve_chain_values("mainnet", {})
-    msg = str(exc.value)
-    # every mainnet preset value is None, so all chain fields must be reported missing
-    assert all(field in msg for field in CHAIN_FIELDS)
 
 
 def test_registry_presets_cover_all_chain_fields() -> None:

@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS citations_index (
     source_id       BIGINT REFERENCES sources (id) ON DELETE SET NULL,
     grounding_score DOUBLE PRECISION NOT NULL CHECK (grounding_score BETWEEN 0 AND 1),
     amount          NUMERIC(20, 6) NOT NULL CHECK (amount >= 0),
-    tx_hash         TEXT CHECK (tx_hash IS NULL OR tx_hash ~ '^0x[0-9a-fA-F]{64}$'),
+    -- settlement ref: on-chain Arc tx hash (0x+64hex) OR Circle Gateway transfer id (UUID).
+    -- Batched x402 settles many tolls in one on-chain mint and returns a per-toll UUID.
+    tx_hash         TEXT CHECK (tx_hash IS NULL OR tx_hash ~ '^(0x[0-9a-fA-F]{64}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'),
     cited           BOOLEAN NOT NULL DEFAULT true,  -- false = evaluated-but-not-cited ($0)
     settled_at      TIMESTAMPTZ
 );

@@ -26,7 +26,14 @@ USDC_DECIMALS = 6
 USDC_FLOOR = Decimal("0.000001")
 
 _HEX_ADDRESS = re.compile(r"^0x[0-9a-fA-F]{40}$")
-_TX_HASH = re.compile(r"^0x[0-9a-fA-F]{64}$")
+# A settlement reference is either an on-chain Arc tx hash (0x + 64 hex) OR a Circle
+# Gateway transfer id (UUID). Batched x402 settles many tolls in one on-chain mint and
+# returns the per-toll Gateway transfer UUID synchronously — that UUID is the canonical
+# settlement reference until/unless the recipient withdraws to an on-chain 0x hash.
+_TX_HASH = re.compile(
+    r"^0x[0-9a-fA-F]{64}$"
+    r"|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 
 class _Frozen(BaseModel):
@@ -86,7 +93,9 @@ class Receipt(_Frozen):
     """
 
     source_id: str = Field(min_length=1)
-    tx_hash: str | None = Field(default=None, description="0x-prefixed Arc tx hash")
+    tx_hash: str | None = Field(
+        default=None, description="settlement ref: 0x Arc tx hash or Gateway transfer id"
+    )
     status: SettlementStatus = SettlementStatus.PENDING
 
     @field_validator("tx_hash")

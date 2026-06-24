@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ARC_EXPLORER_TX, ARC_NETWORK, safeHref, type AskResponse } from "@/lib/types";
+import { ARC_EXPLORER_TX, safeHref, type AskResponse } from "@/lib/types";
 import { Copy } from "./Copy";
 
 type Activity = { settlements: number; volume_usdc: string };
@@ -73,7 +73,7 @@ export default function Home() {
       {/* Hero */}
       <section className="relative mb-14 text-center">
         <div className="mb-6 inline-block animate-pulse rounded-full border border-primary-fixed-dim/20 bg-primary-fixed-dim/5 px-4 py-1 font-label-caps text-label-caps text-primary-fixed-dim">
-          {ARC_NETWORK === "mainnet" ? "Arc Mainnet" : "Arc Testnet"} · Pay-on-citation
+          Arc Testnet · Pay-on-citation
         </div>
         <h1 className="mb-6 font-display-lg text-display-lg tracking-tight text-white md:text-[64px] md:leading-[72px]">
           The{" "}

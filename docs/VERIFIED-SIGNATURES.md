@@ -14,11 +14,10 @@ These constants are **not hardcoded in business logic** — they are a named-net
 preset resolved at runtime from `KERYX_NETWORK` (default `testnet`). The single
 source of truth is `shared/network.py` (Python) and `rail/m0_spike/network.ts` +
 `rail/appkit/network.ts` (TS); both read the same `KERYX_*` env vars so the two
-sides never drift. The `testnet` preset is the verified table below. The `mainnet`
-preset is deliberately empty: selecting it requires every constant to be supplied
-(verified vs Circle/Arc **mainnet** docs) via env, or startup fails loud rather
-than reusing a testnet address. **The hackathon is testnet-only** — mainnet support
-is structural readiness, not a green-lit mainnet deployment.
+sides never drift. The `testnet` preset is the verified table below. **Keryx is
+testnet-only** — Arc Testnet is the only supported network; any other `KERYX_NETWORK`
+value fails loud at startup. Individual constants can still be overridden via their
+`KERYX_*` env vars.
 
 ## Arc Testnet constants
 

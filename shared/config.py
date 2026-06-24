@@ -29,13 +29,11 @@ class Settings(BaseSettings):
         default=0.5, ge=0.0, le=1.0, description="T — pay only if g >= T"
     )
 
-    # --- Network selection (testnet|mainnet) — resolves every chain constant below
-    # from shared.network.NETWORKS. Default testnet (hackathon is testnet-only).
-    # Any single constant can still be overridden via its KERYX_* env var, and the
-    # TS rail reads the same env vars (rail/m0_spike/network.ts) so both sides agree. ---
-    network: str = Field(
-        default="testnet", description="Chain network preset: 'testnet' or 'mainnet'"
-    )
+    # --- Network — resolves every chain constant below from shared.network.NETWORKS.
+    # Keryx is testnet-only (Arc Testnet). Any single constant can still be overridden
+    # via its KERYX_* env var, and the TS rail reads the same env vars
+    # (rail/m0_spike/network.ts) so both sides agree. ---
+    network: str = Field(default="testnet", description="Chain network preset (Arc Testnet)")
 
     # --- Chain / rail (resolved from `network`; defaults shown are the testnet preset) ---
     rpc_url: str = Field(
@@ -181,10 +179,9 @@ class Settings(BaseSettings):
     @model_validator(mode="before")
     @classmethod
     def _resolve_network(cls, values: object) -> object:
-        """Fill every chain constant from the selected network preset, unless the
-        constant was explicitly provided (env/init). Raises for a network whose
-        preset is incomplete (e.g. mainnet) and the value was not supplied — so a
-        misconfigured mainnet fails loud instead of reusing a testnet address."""
+        """Fill every chain constant from the Arc Testnet preset, unless the
+        constant was explicitly provided (env/init). Raises for an unknown network
+        name — Keryx is testnet-only."""
         if not isinstance(values, dict):
             return values
         network = str(values.get("network") or "testnet").lower()

@@ -4,10 +4,8 @@
  * "Arc_Testnet"), so this module resolves those from KERYX_NETWORK rather than
  * hardcoding them across appkit.ts / earn.ts.
  *
- * Default testnet (hackathon is testnet-only). Selecting "mainnet" requires the
- * App Kit chain ids to be supplied via env (KERYX_APPKIT_CHAIN / *_EARN_CHAIN),
- * verified against the App Kit's mainnet chain ids — otherwise this throws rather
- * than transacting against a placeholder.
+ * Keryx is testnet-only (Arc Testnet). The App Kit chain ids can still be
+ * overridden via env (KERYX_APPKIT_CHAIN / *_EARN_CHAIN).
  */
 import { EarnChain } from "@circle-fin/app-kit";
 
@@ -20,12 +18,12 @@ interface AppkitPreset {
 
 const PRESETS: Record<string, AppkitPreset> = {
   testnet: { chain: "Arc_Testnet", earn: "Arc_Testnet" },
-  mainnet: {}, // supply via KERYX_APPKIT_CHAIN / KERYX_APPKIT_EARN_CHAIN
 };
 
 if (!(NETWORK in PRESETS)) {
   throw new Error(
-    `unknown KERYX_NETWORK="${NETWORK}"; expected one of ${Object.keys(PRESETS).join(", ")}`,
+    `unknown KERYX_NETWORK="${NETWORK}"; expected one of ${Object.keys(PRESETS).join(", ")} ` +
+      `(Keryx is testnet-only)`,
   );
 }
 
@@ -37,8 +35,7 @@ function need(envVar: string, presetVal: string | undefined): string {
   if (presetVal !== undefined) return presetVal;
   throw new Error(
     `App Kit network="${NETWORK}" has no value for ${envVar}. Set ${envVar} to the ` +
-      `App Kit chain id (verified against Circle docs) before using this network. ` +
-      `The hackathon is testnet-only.`,
+      `App Kit chain id (Keryx is testnet-only).`,
   );
 }
 

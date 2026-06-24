@@ -26,10 +26,8 @@ export interface AskResponse {
   attestation: Attestation;
 }
 
-// Arc block explorer (arcscan, Blockscout-style). Resolved from the selected
-// network via NEXT_PUBLIC_ARC_EXPLORER (default Arc Testnet), so the same build
-// points at testnet or mainnet by env. Matches Circle's BLOCK_EXPLORERS map.
-export const ARC_NETWORK = process.env.NEXT_PUBLIC_KERYX_NETWORK ?? "testnet";
+// Arc block explorer (arcscan, Blockscout-style) for Arc Testnet, overridable via
+// NEXT_PUBLIC_ARC_EXPLORER. Matches Circle's BLOCK_EXPLORERS map.
 export const ARC_EXPLORER =
   process.env.NEXT_PUBLIC_ARC_EXPLORER ?? "https://testnet.arcscan.app";
 export const ARC_EXPLORER_TX = `${ARC_EXPLORER}/tx/`;
