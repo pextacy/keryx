@@ -43,10 +43,18 @@ class ExtractiveAnswerer:
                     sentences.append(p)
         if not sentences:
             return "No sources available to answer the question."
-        ranked = sorted(sentences, key=lambda snt: similarity(query, snt), reverse=True)
-        chosen = ranked[: self.max_sentences]
+        scored = [(snt, similarity(query, snt)) for snt in sentences]
+        best = max(sc for _, sc in scored)
+        # Only keep sentences clearly relevant to the query — at least a third as
+        # relevant as the best match — so an off-topic candidate source (evaluated
+        # but not cited) never leaks into the answer. Always keep the single best
+        # sentence even when the query barely matches anything.
+        floor = best * 0.35
+        ranked = sorted(scored, key=lambda x: x[1], reverse=True)
+        passing = [snt for snt, sc in ranked if sc >= floor] or [ranked[0][0]]
+        chosen = set(passing[: self.max_sentences])
         # Preserve original order among the chosen for readability.
-        ordered = [s for s in sentences if s in set(chosen)][: self.max_sentences]
+        ordered = [s for s in sentences if s in chosen][: self.max_sentences]
         return ". ".join(ordered) + "."
 
 
