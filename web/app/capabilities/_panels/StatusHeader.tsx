@@ -48,7 +48,7 @@ export function StatusHeader() {
       <span className="mx-1 text-outline-variant">|</span>
       <Badge label={`rail: ${s.rail}`} on={s.rail !== "MockRail"} />
       <Badge label={s.embedder === "VoyageEmbedder" ? "dense embeddings" : "lexical"} on={s.embedder === "VoyageEmbedder"} />
-      <Badge label="Claude judge" on={s.llm_enabled} />
+      <Badge label="Gemini judge" on={s.llm_enabled} />
       <Badge label="ERC-8004" on={s.capabilities.erc8004} />
       <Badge label="ERC-8183" on={s.capabilities.erc8183} />
       <Badge label="Circle Wallets" on={s.capabilities.circle_wallets} />

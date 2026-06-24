@@ -12,13 +12,33 @@ export default function Home() {
   const [recent, setRecent] = useState<Settlement[]>([]);
 
   useEffect(() => {
-    fetch("/api/healthz", { cache: "no-store" })
+    // Headline totals from the DB-backed ledger (/metrics), not the in-memory
+    // traction book — so the numbers survive a backend restart instead of resetting.
+    fetch("/api/metrics", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((b) => b?.activity && setActivity(b.activity))
+      .then(
+        (m) =>
+          m &&
+          setActivity({
+            settlements: m.citations_settled ?? 0,
+            volume_usdc: m.total_settled_usdc ?? "0",
+          }),
+      )
       .catch(() => {});
-    fetch("/api/history?limit=3", { cache: "no-store" })
+    // Recent real settlements from the persistent citation ledger.
+    fetch("/api/ledger", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((b) => b?.settlements && setRecent(b.settlements))
+      .then((d) => {
+        const rows = (d?.recent ?? [])
+          .filter((c: { tx_hash?: string | null }) => Boolean(c.tx_hash))
+          .slice(0, 3)
+          .map((c: { source_url?: string; amount: string }, i: number) => ({
+            seq: i,
+            kind: (c.source_url ?? "citation").replace(/^https?:\/\//, "").slice(0, 22),
+            amount: c.amount,
+          }));
+        setRecent(rows);
+      })
       .catch(() => {});
   }, []);
 
