@@ -161,8 +161,8 @@ python scripts/db_check.py           # verifies reachability + pgvector + schema
 2. The agent retrieves candidate sources (RSSHub `DataItem.link` + `author`).
 3. The agent generates an answer.
 4. **Grounding verifier** (`agent/grounding/`, the moat): similarity + LLM-judge → `g ∈ [0,1]`.
-   The judge is Claude (`AnthropicJudge`, per-claim `supported|partial|unsupported` via
-   structured outputs) when `KERYX_ANTHROPIC_API_KEY` is set, else a deterministic offline
+   The judge is Gemini (`GeminiJudge`, per-claim `supported|partial|unsupported` via
+   structured outputs) when `KERYX_GEMINI_API_KEY` is set, else a deterministic offline
    heuristic — same interface, so CI and the zero-config demo stay reproducible.
 5. For each source with `g ≥ T`, settle a citation toll: x402 → Gateway batch → Arc.
 6. The agent emits a **signed attestation** (`agent/attestation/`) mapping answer → sources → amounts → tx hashes.
@@ -178,7 +178,7 @@ Circle faucet (your authentication) — see `SETUP.md`.
 | --- | --- | --- |
 | 0 Foundation | scaffold, frozen contract, Neon schema, CI, licensing | — ✅ |
 | 1 M0 rail spike | verified signatures, runnable spike, seller emits correct 402 | funded tx (faucet) |
-| 2 M1 agent | grounding moat (Claude judge + answerer, heuristic fallback) + attestation + `/ask` + registry | — ✅ |
+| 2 M1 agent | grounding moat (Gemini judge + answerer, heuristic fallback) + attestation + `/ask` + registry | — ✅ |
 | 3 M2 integration | TS payer bridge + `HttpRail`; pipeline runs unchanged against it | live settlement (funds) |
 | 4 M3 surface | ask page + `/ledger` + attestation viewer; prod build green | Vercel deploy + funds |
 | 5 M4 traction | ledger, team-vs-external metrics, fleet runner | real volume (funds) + Discord |

@@ -161,7 +161,7 @@ rail: Rail = build_rail()
 registry = build_store(settings)
 _agent_key = settings.agent_private_key or Account.create().key.hex()
 signer = AttestationSigner(_agent_key)
-# Real Claude judge + answerer when KERYX_ANTHROPIC_API_KEY is set; heuristics otherwise.
+# Real Gemini judge + answerer when KERYX_GEMINI_API_KEY is set; heuristics otherwise.
 # Dense Voyage embedder when KERYX_VOYAGE_API_KEY is set; offline BagOfWords otherwise.
 # One embedder instance feeds both scoring and retrieval so they share an embedding space.
 _embedder = build_embedder(settings)
