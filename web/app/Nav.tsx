@@ -44,12 +44,6 @@ export function Nav() {
         </div>
         <div className="flex items-center gap-4">
           <NetworkStatus />
-          <button
-            type="button"
-            className="bg-primary-fixed-dim px-6 py-2 font-label-caps text-label-caps font-bold text-on-primary-fixed shadow-[0_0_20px_rgba(0,219,233,0.3)] transition-all hover:brightness-110 active:scale-95"
-          >
-            Connect Wallet
-          </button>
         </div>
       </div>
     </nav>
