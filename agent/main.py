@@ -157,6 +157,18 @@ async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
 
 # Rail comes from config: MockRail by default, HttpRail when KERYX_RAIL=http (Phase 3 / M2).
 # Store + ledger are Neon-backed when KERYX_DATABASE_URL is set, else in-memory (default).
+#
+# Fail-closed: the http rail moves real USDC from a funded wallet, and every mutating
+# endpoint is unauthenticated when `api_token` is empty (see _guard above). Booting that
+# combination on a public host is an open, drainable faucet — anyone can POST /send or
+# /payout. Refuse to start unless an auth token is configured. The mock rail (default
+# zero-config demo) stays open, since nothing it does touches real funds.
+if settings.rail == "http" and not settings.api_token:
+    raise RuntimeError(
+        "Refusing to start: KERYX_RAIL=http settles real USDC but KERYX_API_TOKEN is unset, "
+        "leaving every mutating endpoint open. Set KERYX_API_TOKEN to a secret, or use the "
+        "mock rail for an unauthenticated demo."
+    )
 rail: Rail = build_rail()
 registry = build_store(settings)
 _agent_key = settings.agent_private_key or Account.create().key.hex()
@@ -380,8 +392,8 @@ def _embedder_status() -> dict[str, Any]:
 
 class AskRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
-    budget: Decimal | None = Field(default=None, description="USDC budget for this query")
-    per_source_cap: Decimal | None = None
+    budget: Decimal | None = Field(default=None, gt=0, description="USDC budget for this query")
+    per_source_cap: Decimal | None = Field(default=None, gt=0)
     external: bool = Field(default=False, description="True if from a non-team agent")
     agent_wallet: str | None = Field(
         default=None,

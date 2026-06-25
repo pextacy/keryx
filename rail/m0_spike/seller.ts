@@ -10,6 +10,7 @@
  */
 import { createServer } from "node:http";
 import { BatchFacilitatorClient } from "@circle-fin/x402-batching/server";
+import { isAddress, parseUnits } from "viem";
 // Chain constants resolved from KERYX_NETWORK (default testnet). See network.ts.
 import { CAIP2_NETWORK, USDC, GATEWAY_WALLET, txUrl, KERYX_NETWORK } from "./network.ts";
 
@@ -35,13 +36,35 @@ const facilitator = new BatchFacilitatorClient();
 const GATEWAY_MIN_VALIDITY_SECONDS = 604800; // 7 days, per Circle /supported
 const MAX_TIMEOUT_SECONDS = GATEWAY_MIN_VALIDITY_SECONDS + 3600;
 
-function buildRequirements(payTo: string, price: string) {
-  const amount = Math.round(parseFloat(price) * 1_000_000); // USDC 6 decimals
+// Upper bound on a single citation toll. The amount is client-supplied (query param),
+// so without a cap a caller could mint an arbitrarily large signed payment requirement.
+// 1 USDC is far above any real sub-cent toll and keeps a fat-finger from draining a payer.
+const MAX_TOLL_MICRO_USDC = 1_000_000n; // 1.000000 USDC
+
+/**
+ * Parse a client-supplied USDC price into integer micro-USDC, rejecting anything that
+ * isn't a clean, in-range positive amount. `parseUnits` is decimal-exact (no float drift
+ * like `parseFloat(x) * 1e6`) and throws on non-numeric / >6-decimal input, which we turn
+ * into a thrown Error the request handler converts to a 400.
+ */
+function parseToll(price: string): bigint {
+  let micro: bigint;
+  try {
+    micro = parseUnits(price, 6); // USDC has 6 decimals; throws on garbage / extra precision
+  } catch {
+    throw new Error(`invalid amount: ${price}`);
+  }
+  if (micro <= 0n) throw new Error(`amount must be positive: ${price}`);
+  if (micro > MAX_TOLL_MICRO_USDC) throw new Error(`amount exceeds max toll: ${price}`);
+  return micro;
+}
+
+function buildRequirements(payTo: string, amountMicro: bigint) {
   return {
     scheme: "exact" as const,
     network: CAIP2_NETWORK,
     asset: USDC,
-    amount: amount.toString(),
+    amount: amountMicro.toString(),
     payTo,
     maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
     extra: {
@@ -64,9 +87,26 @@ const server = createServer(async (req, res) => {
   // source. Defaults to env (the M0 single-payment case). The verify and settle calls
   // below must use this same requirements object.
   const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
-  const payTo = (url.searchParams.get("payTo") as `0x${string}` | null) ?? AUTHOR_ADDRESS!;
+  const payTo = url.searchParams.get("payTo") ?? AUTHOR_ADDRESS!;
   const price = url.searchParams.get("amount") ?? TOLL;
-  const requirements = buildRequirements(payTo, price);
+
+  // Validate client-controlled payee + price before they enter a signed payment
+  // requirement. A bad address or a malformed/zero/negative/oversized amount is a 400,
+  // not an undefined-behaviour value handed to the facilitator.
+  if (!isAddress(payTo)) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "invalid payTo address" }));
+    return;
+  }
+  let amountMicro: bigint;
+  try {
+    amountMicro = parseToll(price);
+  } catch (err) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: err instanceof Error ? err.message : "invalid amount" }));
+    return;
+  }
+  const requirements = buildRequirements(payTo, amountMicro);
 
   const paymentSignature = req.headers["payment-signature"] as string | undefined;
 

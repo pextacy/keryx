@@ -9,7 +9,7 @@ evaluated-but-not-cited source so the gating is visible and honest.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 
 from agent.answerer import Answerer, ExtractiveAnswerer
 from agent.attestation import AttestationSigner
@@ -19,11 +19,17 @@ from agent.retrieval import retrieve
 from registry.store import SourceStore
 from shared.rail import Rail
 from shared.types import (
+    USDC_DECIMALS,
+    USDC_FLOOR,
     Attestation,
     CitationIntent,
     CitationRecord,
     SettlementStatus,
 )
+
+# Smallest representable USDC unit; used to clamp a client-supplied per-source cap to a
+# valid amount before it reaches CitationIntent's stricter validator.
+_USDC_QUANTUM = Decimal(1).scaleb(-USDC_DECIMALS)
 
 
 @dataclass
@@ -101,6 +107,13 @@ class AskPipeline:
                 continue
             cap = session.per_source_cap
             amount = min(r.amount, cap) if cap is not None else r.amount
+            # A client-supplied cap can carry sub-micro precision; round down to the USDC
+            # quantum so the intent is constructible, and skip (don't crash) if the capped
+            # toll falls below the floor — a cap below 0.000001 means "too small to pay".
+            amount = amount.quantize(_USDC_QUANTUM, rounding=ROUND_DOWN)
+            if amount < USDC_FLOOR:
+                skip_reason[r.source_id] = "grounded but per-source cap below USDC floor"
+                continue
             if amount > session.remaining - sum(i.amount for i in intents):
                 skip_reason[r.source_id] = "grounded but session budget exhausted"
                 continue

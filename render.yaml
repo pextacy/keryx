@@ -14,6 +14,10 @@ services:
       - key: KERYX_NETWORK
         value: testnet
       # --- secrets (Render prompts you to paste these; never committed) ---
+      - key: KERYX_API_TOKEN          # REQUIRED with the http rail: bearer token gating every
+        sync: false                   # mutating endpoint. Without it the funded wallet is an
+                                      # open faucet, so the agent refuses to boot. Set the same
+                                      # value as the Vercel frontend's KERYX_API_TOKEN.
       - key: BUYER_PRIVATE_KEY        # funded Arc-testnet wallet (rail/m0_spike/.env)
         sync: false
       - key: AUTHOR_ADDRESS           # payee wallet (rail/m0_spike/.env)
